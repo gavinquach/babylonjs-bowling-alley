@@ -9,7 +9,6 @@ import {
     MeshBuilder,
     CubeTexture,
     HavokPlugin,
-    FreeCamera,
     PhysicsAggregate,
     PhysicsShapeType,
     SceneLoader,
@@ -20,10 +19,11 @@ import {
 } from "@babylonjs/core";
 import "@babylonjs/loaders";
 
+let babylonCamera: ArcRotateCamera;
+
 class App {
     canvas: HTMLCanvasElement;
     engine: Engine;
-    camera: ArcRotateCamera;
 
     constructor() {
         this.canvas = document.createElement("canvas");
@@ -55,41 +55,7 @@ class App {
 
     async CreateScene(): Promise<Scene> {
         const scene = new Scene(this.engine);
-
-        // This creates and positions a free camera (non-mesh)
-        this.camera = new ArcRotateCamera(
-            "camera",
-            -Math.PI * 0.5,
-            Math.PI * 0.5,
-            5,
-            Vector3.Zero(),
-            scene,
-        );
-
-        this.camera.position = new Vector3(0, 3, -24);
-        this.camera.setTarget(new Vector3(0, 2, -18));
-
-        // This attaches the camera to the canvas
-        this.camera.attachControl(this.canvas, true);
-
-        // prevent clipping
-        this.camera.minZ = 0.1;
-
-        this.camera.wheelPrecision = 50;
-
-        // camera min distance and max distance
-        this.camera.lowerRadiusLimit = 0.1;
-        this.camera.upperRadiusLimit = 50;
-
-        //  lower rotation sensitivity, higher value = less sensitive
-        this.camera.angularSensibilityX = 2000;
-        this.camera.angularSensibilityY = 2000;
-
-        // disable rotation using keyboard arrow key
-        this.camera.keysUp = [];
-        this.camera.keysDown = [];
-        this.camera.keysLeft = [];
-        this.camera.keysRight = [];
+        this.CreateCamera(scene);
 
         const envMapTexture = CubeTexture.CreateFromPrefilteredData(
             "/env/sky.env",
@@ -114,11 +80,76 @@ class App {
         // Default intensity is 1. Let's dim the light a small amount
         light.intensity = 0.7;
 
-        this.CreateLane(scene);
+        this.CreateBowlingAlley(scene);
+        // this.CreateLane(scene);
         this.CreatePins(scene);
         this.CreateBall(scene);
 
         return scene;
+    }
+
+    CreateCamera(scene: Scene) {
+        // This creates and positions a free camera (non-mesh)
+        babylonCamera = new ArcRotateCamera(
+            "camera",
+            -Math.PI * 0.5,
+            Math.PI * 0.5,
+            5,
+            Vector3.Zero(),
+            scene,
+        );
+
+        babylonCamera.position = new Vector3(0, 2.5, -28);
+        babylonCamera.setTarget(new Vector3(0, 2, -22));
+
+        // This attaches the camera to the canvas
+        babylonCamera.attachControl(this.canvas, true);
+
+        // prevent clipping
+        babylonCamera.minZ = 0.1;
+
+        babylonCamera.wheelPrecision = 50;
+
+        // camera min distance and max distance
+        babylonCamera.lowerRadiusLimit = 0.1;
+        babylonCamera.upperRadiusLimit = 50;
+
+        //  lower rotation sensitivity, higher value = less sensitive
+        babylonCamera.angularSensibilityX = 2000;
+        babylonCamera.angularSensibilityY = 2000;
+
+        // disable rotation using keyboard arrow key
+        babylonCamera.keysUp = [];
+        babylonCamera.keysDown = [];
+        babylonCamera.keysLeft = [];
+        babylonCamera.keysRight = [];
+    }
+
+    async CreateBowlingAlley(scene: Scene) {
+        const result = await SceneLoader.ImportMeshAsync(
+            "",
+            "/models/",
+            "bowling-alley.glb",
+            scene,
+        );
+
+        console.log(result);
+
+        result.meshes.forEach(mesh => {
+            mesh.position = new Vector3(1.4, 2.1, 35);
+            mesh.scaling.scaleInPlace(6);
+
+            // lane of user, enable physics collision
+            if (
+                mesh.name === "polygon1.001" ||
+                mesh.name === "polygon133" ||
+                mesh.name === "polygon139"
+            ) {
+                console.log(mesh);
+
+                new PhysicsAggregate(mesh, PhysicsShapeType.MESH, { mass: 0 }, scene);
+            }
+        });
     }
 
     async CreateLane(scene: Scene) {
@@ -166,7 +197,7 @@ class App {
             new PhysicsAggregate(
                 pin,
                 PhysicsShapeType.CONVEX_HULL,
-                { mass: 1, restitution: 0.25 },
+                { mass: 1, restitution: 0.15 },
                 scene,
             );
             return pin;
@@ -182,11 +213,11 @@ class App {
         );
         const bowlingBall = result.meshes[1];
         bowlingBall.scaling.scaleInPlace(0.7);
-        bowlingBall.position = new Vector3(0, 0.5, -15);
+        bowlingBall.position = new Vector3(0, 0.5, -22);
         const ballAggregate = new PhysicsAggregate(
             bowlingBall,
             PhysicsShapeType.SPHERE,
-            { mass: 1, restitution: 0.25 },
+            { mass: 4, restitution: 0.25 },
             scene,
         );
         ballAggregate.body.disablePreStep = false;
@@ -195,7 +226,7 @@ class App {
         scene.onKeyboardObservable.add(kbInfo => {
             switch (kbInfo.type) {
                 case KeyboardEventTypes.KEYDOWN:
-                    switch (kbInfo.event.key.toLowerCase()) {
+                    switch (kbInfo.event.key.toLowerCase().trim()) {
                         case "a":
                             bowlingBall.position.x += 0.1;
                             break;
@@ -208,24 +239,14 @@ class App {
                         case "arrowright":
                             bowlingBall.position.x -= 0.1;
                             break;
+                        case "":
+                            ballAggregate.body.applyImpulse(
+                                new Vector3(0, 0, 100),
+                                bowlingBall.getAbsolutePosition(),
+                            );
+                            break;
                     }
             }
-        });
-
-        const handleKeyDown = (ev: KeyboardEvent) => {
-            // space key press
-            if (ev.code === "Space") {
-                ballAggregate.body.applyImpulse(
-                    new Vector3(0, 0, 30),
-                    bowlingBall.getAbsolutePosition(),
-                );
-            }
-        };
-        this.canvas.addEventListener("keydown", handleKeyDown);
-
-        // remove event listener when scene is disposed
-        scene.onDisposeObservable.add(() => {
-            this.canvas.removeEventListener("keydown", handleKeyDown);
         });
     }
 }
