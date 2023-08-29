@@ -6,7 +6,6 @@ import {
     Scene,
     Vector3,
     HemisphericLight,
-    MeshBuilder,
     CubeTexture,
     HavokPlugin,
     PhysicsAggregate,
@@ -22,11 +21,10 @@ import "@babylonjs/loaders";
 // using CDN in index.html
 declare function HavokPhysics(): any;
 
-let babylonCamera: ArcRotateCamera;
-
 class App {
     canvas: HTMLCanvasElement;
     engine: Engine;
+    camera?: ArcRotateCamera;
 
     constructor() {
         this.canvas = document.createElement("canvas");
@@ -106,7 +104,7 @@ class App {
     }
 
     CreateCamera(scene: Scene) {
-        babylonCamera = new ArcRotateCamera(
+        this.camera = new ArcRotateCamera(
             "camera",
             -Math.PI * 0.5,
             Math.PI * 0.5,
@@ -115,30 +113,30 @@ class App {
             scene,
         );
 
-        babylonCamera.position = new Vector3(0, 2.5, -28);
-        babylonCamera.setTarget(new Vector3(0, 2, -22));
+        this.camera.position = new Vector3(0, 2.5, -28);
+        this.camera.setTarget(new Vector3(0, 2, -22));
 
         // This attaches the camera to the canvas
-        babylonCamera.attachControl(this.canvas, true);
+        this.camera.attachControl(this.canvas, true);
 
         // prevent clipping
-        babylonCamera.minZ = 0.1;
+        this.camera.minZ = 0.1;
 
-        babylonCamera.wheelPrecision = 50;
+        this.camera.wheelPrecision = 50;
 
         // camera min distance and max distance
-        babylonCamera.lowerRadiusLimit = 0.1;
-        babylonCamera.upperRadiusLimit = 50;
+        this.camera.lowerRadiusLimit = 0.1;
+        this.camera.upperRadiusLimit = 50;
 
         //  lower rotation sensitivity, higher value = less sensitive
-        babylonCamera.angularSensibilityX = 2000;
-        babylonCamera.angularSensibilityY = 2000;
+        this.camera.angularSensibilityX = 2000;
+        this.camera.angularSensibilityY = 2000;
 
         // disable rotation using keyboard arrow key
-        babylonCamera.keysUp = [];
-        babylonCamera.keysDown = [];
-        babylonCamera.keysLeft = [];
-        babylonCamera.keysRight = [];
+        this.camera.keysUp = [];
+        this.camera.keysDown = [];
+        this.camera.keysLeft = [];
+        this.camera.keysRight = [];
     }
 
     async CreateBowlingAlley(scene: Scene) {
