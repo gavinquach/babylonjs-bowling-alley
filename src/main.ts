@@ -137,7 +137,7 @@ class App {
         );
 
         result.meshes.forEach(mesh => {
-            mesh.position = new Vector3(1.4, 2.1, 35);
+            mesh.position = new Vector3(1.34, 2.1, 35);
             mesh.scaling.scaleInPlace(6);
 
             // lane of user, enable physics collision
@@ -177,16 +177,16 @@ class App {
 
         // Pin positions
         const pinPositions = [
-            new Vector3(0, 0, 5),
-            new Vector3(0.5, 0, 6),
-            new Vector3(-0.5, 0, 6),
-            new Vector3(0, 0, 7),
-            new Vector3(1, 0, 7),
-            new Vector3(-1, 0, 7),
-            new Vector3(-1.5, 0, 8),
-            new Vector3(-0.5, 0, 8),
-            new Vector3(0.5, 0, 8),
-            new Vector3(1.5, 0, 8),
+            new Vector3(0, 0, 8.425),
+            new Vector3(0.55, 0, 9.355),
+            new Vector3(-0.55, 0, 9.355),
+            new Vector3(0, 0, 10.325),
+            new Vector3(1.1, 0, 10.325),
+            new Vector3(-1.1, 0, 10.325),
+            new Vector3(-1.65, 0, 11.285),
+            new Vector3(-0.55, 0, 11.285),
+            new Vector3(0.55, 0, 11.285),
+            new Vector3(1.65, 0, 11.285),
         ];
 
         // Create instances of the bowling pin
