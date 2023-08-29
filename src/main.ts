@@ -25,6 +25,7 @@ class App {
     canvas: HTMLCanvasElement;
     engine: Engine;
     camera?: ArcRotateCamera;
+    throwAngle: number = 0; // max: 5, min: -5, default: 0
 
     constructor() {
         this.canvas = document.createElement("canvas");
@@ -226,27 +227,33 @@ class App {
             switch (kbInfo.type) {
                 case KeyboardEventTypes.KEYDOWN:
                     switch (kbInfo.event.key.toLowerCase().trim()) {
+                        case "":
+                            ballAggregate.body.applyImpulse(
+                                new Vector3(this.throwAngle, 0, 100),
+                                bowlingBall.getAbsolutePosition(),
+                            );
+                            break;
+                        case "w":
+                        case "arrowup":
+                            if (this.throwAngle >= 5) break;
+                            this.throwAngle += 0.5;
+                            bowlingBall.rotate(Vector3.Up(), -Math.PI * 0.01);
+                            break;
+                        case "s":
+                        case "arrowdown":
+                            if (this.throwAngle <= -5) break;
+                            this.throwAngle -= 0.5;
+                            bowlingBall.rotate(Vector3.Up(), Math.PI * 0.01);
+                            break;
                         case "a":
-                            if (bowlingBall.position.x > 1.8) break;
-                            bowlingBall.position.x += 0.05;
-                            break;
-                        case "d":
-                            if (bowlingBall.position.x < -1.8) break;
-                            bowlingBall.position.x -= 0.05;
-                            break;
                         case "arrowleft":
                             if (bowlingBall.position.x > 1.8) break;
                             bowlingBall.position.x += 0.05;
                             break;
+                        case "d":
                         case "arrowright":
                             if (bowlingBall.position.x < -1.8) break;
                             bowlingBall.position.x -= 0.05;
-                            break;
-                        case "":
-                            ballAggregate.body.applyImpulse(
-                                new Vector3(0, 0, 100),
-                                bowlingBall.getAbsolutePosition(),
-                            );
                             break;
                     }
             }
