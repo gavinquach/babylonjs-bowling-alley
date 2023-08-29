@@ -39,8 +39,12 @@ class App {
         this.engine = new Engine(this.canvas, true);
 
         this.CreateScene().then(scene => {
-            // hide/show the Inspector by pressing i
-            window.addEventListener("keydown", ev => {
+            this.engine.runRenderLoop(() => {
+                if (scene) scene.render();
+            });
+
+            const handleKeydown = (ev: KeyboardEvent) => {
+                // hide/show the Inspector by pressing i
                 if (ev.key === "i") {
                     if (scene.debugLayer.isVisible()) {
                         scene.debugLayer.hide();
@@ -48,11 +52,22 @@ class App {
                         scene.debugLayer.show();
                     }
                 }
-            });
+            };
 
-            this.engine.runRenderLoop(() => {
-                if (scene) scene.render();
-            });
+            const handleResize = () => {
+                this.engine.resize();
+            };
+
+            window.addEventListener("keydown", handleKeydown);
+
+            // the canvas/window resize event handler
+            window.addEventListener("resize", handleResize);
+
+            // remove event listener
+            scene.onDispose = () => {
+                window.removeEventListener("keydown", handleKeydown);
+                window.removeEventListener("resize", handleResize);
+            };
         });
     }
 
@@ -74,7 +89,6 @@ class App {
         // create gravity vector
         const gravityVector = new Vector3(0, -9.81, 0);
 
-
         const havokInstance = await HavokPhysics();
         // pass the engine to the plugin
         const havokPlugin = new HavokPlugin(true, havokInstance);
@@ -85,7 +99,6 @@ class App {
         light.intensity = 0.7;
 
         this.CreateBowlingAlley(scene);
-        // this.CreateLane(scene);
         this.CreatePins(scene);
         this.CreateBall(scene);
 
@@ -149,17 +162,6 @@ class App {
                 new PhysicsAggregate(mesh, PhysicsShapeType.MESH, { mass: 0 }, scene);
             }
         });
-    }
-
-    async CreateLane(scene: Scene) {
-        const lane = MeshBuilder.CreateGround(
-            "lane",
-            { width: 6, height: 30 },
-            scene,
-        );
-        lane.position = new Vector3(0, 0, -5);
-
-        new PhysicsAggregate(lane, PhysicsShapeType.BOX, { mass: 0 }, scene);
     }
 
     // Create bowling pins
