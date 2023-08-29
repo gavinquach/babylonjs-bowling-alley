@@ -19,6 +19,9 @@ import {
 } from "@babylonjs/core";
 import "@babylonjs/loaders";
 
+// using CDN in index.html
+declare function HavokPhysics(): any;
+
 let babylonCamera: ArcRotateCamera;
 
 class App {
@@ -29,7 +32,7 @@ class App {
         this.canvas = document.createElement("canvas");
         this.canvas.style.width = "100%";
         this.canvas.style.height = "100%";
-        this.canvas.id = "gameCanvas";
+        this.canvas.id = "babylonCanvas";
         document.getElementById("app")!.appendChild(this.canvas);
 
         // initialize babylon scene and engine
@@ -68,10 +71,11 @@ class App {
         // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
         const light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
 
-        // initialize plugin
-        const havokInstance = await HavokPhysics();
         // create gravity vector
         const gravityVector = new Vector3(0, -9.81, 0);
+
+
+        const havokInstance = await HavokPhysics();
         // pass the engine to the plugin
         const havokPlugin = new HavokPlugin(true, havokInstance);
         // enable physics in the scene with a gravity
@@ -89,7 +93,6 @@ class App {
     }
 
     CreateCamera(scene: Scene) {
-        // This creates and positions a free camera (non-mesh)
         babylonCamera = new ArcRotateCamera(
             "camera",
             -Math.PI * 0.5,
@@ -133,8 +136,6 @@ class App {
             scene,
         );
 
-        console.log(result);
-
         result.meshes.forEach(mesh => {
             mesh.position = new Vector3(1.4, 2.1, 35);
             mesh.scaling.scaleInPlace(6);
@@ -145,8 +146,6 @@ class App {
                 mesh.name === "polygon133" ||
                 mesh.name === "polygon139"
             ) {
-                console.log(mesh);
-
                 new PhysicsAggregate(mesh, PhysicsShapeType.MESH, { mass: 0 }, scene);
             }
         });

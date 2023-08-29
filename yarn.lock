@@ -17,13 +17,6 @@
   resolved "https://registry.yarnpkg.com/@babylonjs/gui/-/gui-6.18.0.tgz#521965fd24948b670ef223d360af9c49cdd5d33a"
   integrity sha512-sYMFUOJMIE6R5YSiSw91Fm4nXIWKWWyxDUlP/R9a/mGdtbl1/BZ/xB37qYHb50AOxXLKY2l0GgLWHn8uQQr2GQ==
 
-"@babylonjs/havok@^1.1.4":
-  version "1.1.4"
-  resolved "https://registry.yarnpkg.com/@babylonjs/havok/-/havok-1.1.4.tgz#5b2bdc30da475e3e79eb36da94f414f5dcf41037"
-  integrity sha512-mK/sgqv4LaI4BjoQgWYGxOBX45hVauZ8PopPkIUIB42DiVPgWkiCZbBQ9pL7r1tbLhThvV1RTokj4z5bVGBayw==
-  dependencies:
-    "@types/emscripten" "^1.39.6"
-
 "@babylonjs/inspector@^6.18.0":
   version "6.18.0"
   resolved "https://registry.yarnpkg.com/@babylonjs/inspector/-/inspector-6.18.0.tgz#041794b68968f3173b2746f718785527e125b322"
@@ -255,11 +248,6 @@
   dependencies:
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
-
-"@types/emscripten@^1.39.6":
-  version "1.39.7"
-  resolved "https://registry.yarnpkg.com/@types/emscripten/-/emscripten-1.39.7.tgz#3025183ea56e12bf4d096aadc48ce74ca051233d"
-  integrity sha512-tLqYV94vuqDrXh515F/FOGtBcRMTPGvVV1LzLbtYDcQmmhtpf/gLYf+hikBbQk8MzOHNz37wpFfJbYAuSn8HqA==
 
 "@types/json-schema@^7.0.9":
   version "7.0.11"
