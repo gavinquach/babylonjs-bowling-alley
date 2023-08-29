@@ -1,0 +1,32 @@
+{
+  "name": "babylonjs-typescript-starter",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint 'src/**/*.{js,ts}'"
+  },
+  "devDependencies": {
+    "@babylonjs/gui": "^6.18.0",
+    "@babylonjs/gui-editor": "^6.18.0",
+    "@babylonjs/inspector": "^6.18.0",
+    "@babylonjs/materials": "^6.18.0",
+    "@babylonjs/serializers": "^6.18.0",
+    "@typescript-eslint/eslint-plugin": "^5.57.0",
+    "@typescript-eslint/parser": "^5.57.0",
+    "eslint": "^8.37.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "prettier": "^2.8.7",
+    "typescript": "^4.9.3",
+    "vite": "^4.4.9"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^6.18.0",
+    "@babylonjs/havok": "^1.1.4",
+    "@babylonjs/loaders": "^6.18.0"
+  }
+}
