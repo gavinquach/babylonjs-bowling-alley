@@ -227,15 +227,19 @@ class App {
                 case KeyboardEventTypes.KEYDOWN:
                     switch (kbInfo.event.key.toLowerCase().trim()) {
                         case "a":
+                            if (bowlingBall.position.x > 1.8) break;
                             bowlingBall.position.x += 0.1;
                             break;
                         case "d":
+                            if (bowlingBall.position.x < -1.8) break;
                             bowlingBall.position.x -= 0.1;
                             break;
                         case "arrowleft":
+                            if (bowlingBall.position.x > 1.8) break;
                             bowlingBall.position.x += 0.1;
                             break;
                         case "arrowright":
+                            if (bowlingBall.position.x < -1.8) break;
                             bowlingBall.position.x -= 0.1;
                             break;
                         case "":
