@@ -1,10 +1,10 @@
 import "./style.css";
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
-import * as BABYLON from "@babylonjs/core";
 import "@babylonjs/loaders";
+import * as BABYLON from "@babylonjs/core";
 import { HavokPhysicsWithBindings } from "@babylonjs/havok";
-import * as Hammer from 'hammerjs';
+import * as Hammer from "hammerjs";
 
 // using CDN in index.html
 declare function HavokPhysics(): any;
@@ -15,9 +15,11 @@ class App {
     scene: BABYLON.Scene;
     havok!: HavokPhysicsWithBindings;
     camera!: BABYLON.ArcRotateCamera | BABYLON.FreeCamera;
-    bowlingAlleyMesh!: {
+    thirdperson: boolean = false;
+    bowlingAlleyObjects!: {
         character: BABYLON.AbstractMesh[];
         ball: BABYLON.AbstractMesh;
+        ballBody: BABYLON.PhysicsAggregate;
         pins: BABYLON.InstancedMesh[];
         facility: BABYLON.AbstractMesh[];
     };
@@ -37,12 +39,14 @@ class App {
         // initialize babylon scene and engine
         this.engine = new BABYLON.Engine(this.canvas, true);
 
+        // show loading screen
         this.engine.displayLoadingUI();
 
         this.scene = new BABYLON.Scene(this.engine);
 
-        this.bowlingAlleyMesh = {
+        this.bowlingAlleyObjects = {
             ball: null!,
+            ballBody: null!,
             character: [],
             pins: [],
             facility: [],
@@ -57,44 +61,22 @@ class App {
             await this.CreateCharacter(this.scene);
             this.CreateLight();
 
+            this.InitControls();
             this.allowThrow = true;
+
+            // hide loading screen
             this.engine.hideLoadingUI();
 
             this.engine.runRenderLoop(() => {
                 if (this.scene) this.scene.render();
             });
 
-            const handleKeydown = (ev: KeyboardEvent) => {
-                // hide/show the Inspector by pressing Shift + Ctrl + Alt + I
-                // Shift+Ctrl+Alt+I
-                if (ev.shiftKey && ev.ctrlKey && ev.altKey && ev.keyCode === 73) {
-                    if (this.scene.debugLayer.isVisible()) {
-                        this.scene.debugLayer.hide();
-                    } else {
-                        this.scene.debugLayer.show();
-                    }
-                }
-                // switch to arc rotate camera by pressing 1
-                if (ev.key === "1") {
-                    this.InitSceneCamera();
-                }
-                // switch to first person controller by pressing 2
-                if (ev.key === "2") {
-                    this.InitFirstPersonController();
-                }
-            };
-
-            const handleResize = () => {
-                this.engine.resize();
-            };
-            window.addEventListener("keydown", handleKeydown);
-
             // the canvas/window resize event handler
+            const handleResize = () => this.engine.resize();
             window.addEventListener("resize", handleResize);
 
             // remove event listener
             this.scene.onDispose = () => {
-                window.removeEventListener("keydown", handleKeydown);
                 window.removeEventListener("resize", handleResize);
             };
         });
@@ -102,7 +84,7 @@ class App {
 
     async InitScene(): Promise<void> {
         const envMapTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
-            "/env/sky.env",
+            "/envMap/sky.env",
             this.scene,
         );
         this.scene.environmentTexture = envMapTexture;
@@ -127,6 +109,8 @@ class App {
 
             this.engine.exitPointerlock();
             this.scene.onPointerDown = undefined;
+
+            this.thirdperson = false;
         }
     }
 
@@ -161,6 +145,48 @@ class App {
         this.camera.keysLeft.push(65); // A
         this.camera.keysDown.push(83); // S
         this.camera.keysRight.push(68); // D
+    }
+
+    InitThirdPersonController() {
+        this.CleanUpCamera();
+
+        this.camera = new BABYLON.ArcRotateCamera(
+            "camera",
+            -Math.PI * 0.5,
+            Math.PI * 0.5,
+            5,
+            BABYLON.Vector3.Zero(),
+            this.scene,
+        );
+
+        this.camera.position = new BABYLON.Vector3(0, 2.5, -3);
+        this.camera.setTarget(new BABYLON.Vector3(0, 2.49, -2.9));
+
+        // This attaches the camera to the canvas
+        this.camera.attachControl(this.canvas, true);
+
+        // prevent clipping
+        this.camera.minZ = 0.1;
+
+        this.camera.wheelPrecision = 0;
+
+        // camera min distance and max distance
+        this.camera.lowerRadiusLimit = 0;
+        this.camera.upperRadiusLimit = 0;
+
+        //  lower rotation sensitivity, higher value = less sensitive
+        this.camera.angularSensibilityX = 3000;
+        this.camera.angularSensibilityY = 3000;
+
+        // disable rotation using keyboard arrow key
+        this.camera.keysUp = [];
+        this.camera.keysDown = [];
+        this.camera.keysLeft = [];
+        this.camera.keysRight = [];
+
+        this.camera.checkCollisions = true;
+
+        this.thirdperson = true;
     }
 
     InitSceneCamera() {
@@ -201,6 +227,92 @@ class App {
         this.camera.keysRight = [];
     }
 
+    InitControls() {
+        // Keyboard input
+        this.scene.onKeyboardObservable.add(kbInfo => {
+            if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
+                if (!this.allowThrow) return;
+                switch (kbInfo.event.key.toLowerCase().trim()) {
+                    case "1":
+                        // switch to arc rotate camera by pressing 1
+                        this.InitSceneCamera();
+                        break;
+                    case "2":
+                        // switch to first person controller by pressing 2
+                        this.InitFirstPersonController();
+                        break;
+                    case "3":
+                        // switch to third person controller by pressing 3
+                        this.InitThirdPersonController();
+                        break;
+                    case "":
+                        this.bowlingAlleyObjects.ballBody.body.applyImpulse(
+                            new BABYLON.Vector3(this.throwAngle, 0, 100),
+                            this.bowlingAlleyObjects.ball.getAbsolutePosition(),
+                        );
+                        this.allowThrow = false;
+                        break;
+                    case "w":
+                    case "arrowup":
+                        this.throwAngle += this.throwAngle >= 5 ? 0 : 0.5;
+                        this.bowlingAlleyObjects.ball.rotate(
+                            BABYLON.Vector3.Up(),
+                            -Math.PI * 0.01,
+                        );
+                        break;
+                    case "s":
+                    case "arrowdown":
+                        this.throwAngle -= this.throwAngle <= -5 ? 0 : 0.5;
+                        this.bowlingAlleyObjects.ball.rotate(
+                            BABYLON.Vector3.Up(),
+                            Math.PI * 0.01,
+                        );
+                        break;
+                    case "a":
+                    case "arrowleft":
+                        if (this.bowlingAlleyObjects.ball.position.x > 1.8) break;
+                        this.bowlingAlleyObjects.ball.position.x += 0.05;
+                        break;
+                    case "d":
+                    case "arrowright":
+                        if (this.bowlingAlleyObjects.ball.position.x < -1.8) break;
+                        this.bowlingAlleyObjects.ball.position.x -= 0.05;
+                        break;
+                }
+            }
+        });
+
+        // phone input for ball
+        const hammerManager = new Hammer.Manager(this.canvas);
+
+        // create swipe gesture recognizer and add recognizer to manager
+        const Swipe = new Hammer.Swipe();
+        hammerManager.add(Swipe);
+
+        hammerManager.get("swipe").set({ direction: Hammer.DIRECTION_ALL });
+        hammerManager.on("swipe", (e: any) => {
+            if (!this.allowThrow) return;
+            switch (e.direction) {
+                // swipe up to throw ball
+                case Hammer.DIRECTION_UP:
+                    this.bowlingAlleyObjects.ballBody.body.applyImpulse(
+                        new BABYLON.Vector3(this.throwAngle, 0, 100),
+                        this.bowlingAlleyObjects.ball.getAbsolutePosition(),
+                    );
+                    this.allowThrow = false;
+                    break;
+                case Hammer.DIRECTION_LEFT:
+                    if (this.bowlingAlleyObjects.ball.position.x > 1.8) break;
+                    this.bowlingAlleyObjects.ball.position.x += 0.05;
+                    break;
+                case Hammer.DIRECTION_RIGHT:
+                    if (this.bowlingAlleyObjects.ball.position.x < -1.8) break;
+                    this.bowlingAlleyObjects.ball.position.x -= 0.05;
+                    break;
+            }
+        });
+    }
+
     CreateLight() {
         // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
         const hemiLight = new BABYLON.HemisphericLight(
@@ -237,19 +349,19 @@ class App {
         // low quality for better performance
         // shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_LOW;
 
-        this.bowlingAlleyMesh.character.forEach(mesh => {
+        this.bowlingAlleyObjects.character.forEach(mesh => {
             mesh.receiveShadows = true;
             shadowGenerator.addShadowCaster(mesh);
         });
 
-        this.bowlingAlleyMesh.ball.receiveShadows = true;
-        shadowGenerator.addShadowCaster(this.bowlingAlleyMesh.ball);
+        this.bowlingAlleyObjects.ball.receiveShadows = true;
+        shadowGenerator.addShadowCaster(this.bowlingAlleyObjects.ball);
 
-        this.bowlingAlleyMesh.pins.forEach(mesh => {
+        this.bowlingAlleyObjects.pins.forEach(mesh => {
             mesh.receiveShadows = true;
             shadowGenerator.addShadowCaster(mesh);
         });
-        this.bowlingAlleyMesh.facility.forEach(mesh => {
+        this.bowlingAlleyObjects.facility.forEach(mesh => {
             mesh.receiveShadows = true;
             shadowGenerator.addShadowCaster(mesh);
         });
@@ -275,7 +387,7 @@ class App {
             scene,
         );
 
-        this.bowlingAlleyMesh.character = meshes;
+        this.bowlingAlleyObjects.character = meshes;
 
         // play Idle animation
         const idleAnim = scene.getAnimationGroupByName("Walking")!;
@@ -312,14 +424,15 @@ class App {
             }
         });
 
-        this.bowlingAlleyMesh.facility = meshes;
+        this.bowlingAlleyObjects.facility = meshes;
 
         // Create invisible floor as ground to walk on with physics
         const ground = BABYLON.MeshBuilder.CreateGround(
             "ground",
-            { width: 140, height: 63 },
+            { width: 140, height: 66 },
             scene,
         );
+        ground.position.z = 2.5;
         ground.position.y = -0.1;
         ground.checkCollisions = true;
         ground.material = new BABYLON.StandardMaterial("groundMat", scene);
@@ -360,7 +473,7 @@ class App {
             );
             pin.position = positionInSpace;
 
-            this.bowlingAlleyMesh.pins.push(pin);
+            this.bowlingAlleyObjects.pins.push(pin);
 
             new BABYLON.PhysicsAggregate(
                 pin,
@@ -384,7 +497,7 @@ class App {
         bowlingBall.scaling.scaleInPlace(0.7);
         bowlingBall.position = new BABYLON.Vector3(0, 0.5, 1);
 
-        this.bowlingAlleyMesh.ball = bowlingBall;
+        this.bowlingAlleyObjects.ball = bowlingBall;
 
         const ballAggregate = new BABYLON.PhysicsAggregate(
             bowlingBall,
@@ -394,67 +507,15 @@ class App {
         );
         ballAggregate.body.disablePreStep = false;
 
-        // Keyboard input for ball
-        scene.onKeyboardObservable.add(kbInfo => {
-            if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
-                if (!this.allowThrow) return;
-                switch (kbInfo.event.key.toLowerCase().trim()) {
-                    case "":
-                        ballAggregate.body.applyImpulse(
-                            new BABYLON.Vector3(this.throwAngle, 0, 100),
-                            bowlingBall.getAbsolutePosition(),
-                        );
-                        this.allowThrow = false;
-                        break;
-                    case "w":
-                    case "arrowup":
-                        this.throwAngle += this.throwAngle >= 5 ? 0 : 0.5;
-                        bowlingBall.rotate(BABYLON.Vector3.Up(), -Math.PI * 0.01);
-                        break;
-                    case "s":
-                    case "arrowdown":
-                        this.throwAngle -= this.throwAngle <= -5 ? 0 : 0.5;
-                        bowlingBall.rotate(BABYLON.Vector3.Up(), Math.PI * 0.01);
-                        break;
-                    case "a":
-                    case "arrowleft":
-                        bowlingBall.position.x += bowlingBall.position.x > 1.8 ? 0 : 0.05;
-                        break;
-                    case "d":
-                    case "arrowright":
-                        bowlingBall.position.x -= bowlingBall.position.x < -1.8 ? 0 : 0.05;
-                        break;
-                }
-            }
-        });
+        this.bowlingAlleyObjects.ballBody = ballAggregate;
+    }
 
-        // phone input for ball
-        const hammerManager = new Hammer.Manager(this.canvas);
-
-        // create swipe gesture recognizer and add recognizer to manager
-        const Swipe = new Hammer.Swipe();
-        hammerManager.add(Swipe);
-
-        hammerManager.get("swipe").set({ direction: Hammer.DIRECTION_ALL });
-        hammerManager.on("swipe", (e: any) => {
-            if (!this.allowThrow) return;
-            switch (e.direction) {
-                // swipe up to throw ball
-                case Hammer.DIRECTION_UP:
-                    ballAggregate.body.applyImpulse(
-                        new BABYLON.Vector3(this.throwAngle, 0, 100),
-                        bowlingBall.getAbsolutePosition(),
-                    );
-                    this.allowThrow = false;
-                    break;
-                case Hammer.DIRECTION_LEFT:
-                    bowlingBall.position.x += bowlingBall.position.x > 1.8 ? 0 : 0.05;
-                    break;
-                case Hammer.DIRECTION_RIGHT:
-                    bowlingBall.position.x -= bowlingBall.position.x < -1.8 ? 0 : 0.05;
-                    break;
-            }
-        });
+    CharacterMoveForward() {
+        this.bowlingAlleyObjects.character[0].translate(
+            BABYLON.Vector3.Forward(),
+            0.1,
+            BABYLON.Space.LOCAL,
+        );
     }
 }
 
