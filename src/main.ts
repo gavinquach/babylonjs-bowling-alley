@@ -4,6 +4,7 @@ import "@babylonjs/inspector";
 import * as BABYLON from "@babylonjs/core";
 import "@babylonjs/loaders";
 import { HavokPhysicsWithBindings } from "@babylonjs/havok";
+import * as Hammer from 'hammerjs';
 
 // using CDN in index.html
 declare function HavokPhysics(): any;
@@ -273,18 +274,18 @@ class App {
     }
 
     async CreateBowlingAlley(scene: BABYLON.Scene) {
-        const result = await BABYLON.SceneLoader.ImportMeshAsync(
+        const { meshes } = await BABYLON.SceneLoader.ImportMeshAsync(
             "",
             "/models/",
             "bowling-alley.glb",
             scene,
         );
 
-        for (const mesh of result.meshes) {
+        for (const mesh of meshes) {
             mesh.receiveShadows = true;
         }
 
-        result.meshes.forEach(mesh => {
+        meshes.forEach(mesh => {
             mesh.scaling.scaleInPlace(6);
             mesh.position = new BABYLON.Vector3(1.34, 3.38, 58);
 
@@ -303,7 +304,7 @@ class App {
             }
         });
 
-        this.bowlingAlleyMesh.facility = result.meshes;
+        this.bowlingAlleyMesh.facility = meshes;
 
         // Create invisible floor as ground to walk on with physics
         const ground = BABYLON.MeshBuilder.CreateGround(
@@ -318,14 +319,14 @@ class App {
     }
 
     async CreatePins(scene: BABYLON.Scene): Promise<void> {
-        const result = await BABYLON.SceneLoader.ImportMeshAsync(
+        const { meshes } = await BABYLON.SceneLoader.ImportMeshAsync(
             "",
             "/models/",
             "pin.glb",
             scene,
         );
 
-        const bowlingPin = result.meshes[1];
+        const bowlingPin = meshes[1];
         bowlingPin.scaling = new BABYLON.Vector3(0.3, 0.3, 0.3);
         bowlingPin.setEnabled(false);
 
@@ -416,6 +417,34 @@ class App {
                         bowlingBall.position.x -= bowlingBall.position.x < -1.8 ? 0 : 0.05;
                         break;
                 }
+            }
+        });
+
+        // phone input for ball
+        const hammerManager = new Hammer.Manager(this.canvas);
+
+        // create swipe gesture recognizer and add recognizer to manager
+        const Swipe = new Hammer.Swipe();
+        hammerManager.add(Swipe);
+
+        hammerManager.get("swipe").set({ direction: Hammer.DIRECTION_ALL });
+        hammerManager.on("swipe", (e: any) => {
+            if (!this.allowThrow) return;
+            switch (e.direction) {
+                // swipe up to throw ball
+                case Hammer.DIRECTION_UP:
+                    ballAggregate.body.applyImpulse(
+                        new BABYLON.Vector3(this.throwAngle, 0, 100),
+                        bowlingBall.getAbsolutePosition(),
+                    );
+                    this.allowThrow = false;
+                    break;
+                case Hammer.DIRECTION_LEFT:
+                    bowlingBall.position.x += bowlingBall.position.x > 1.8 ? 0 : 0.05;
+                    break;
+                case Hammer.DIRECTION_RIGHT:
+                    bowlingBall.position.x -= bowlingBall.position.x < -1.8 ? 0 : 0.05;
+                    break;
             }
         });
     }
