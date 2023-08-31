@@ -36,6 +36,9 @@ class App {
 
         // initialize babylon scene and engine
         this.engine = new BABYLON.Engine(this.canvas, true);
+
+        this.engine.displayLoadingUI();
+
         this.scene = new BABYLON.Scene(this.engine);
 
         this.bowlingAlleyMesh = {
@@ -55,6 +58,7 @@ class App {
             this.CreateLight();
 
             this.allowThrow = true;
+            this.engine.hideLoadingUI();
 
             this.engine.runRenderLoop(() => {
                 if (this.scene) this.scene.render();
