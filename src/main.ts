@@ -5,6 +5,7 @@ import "@babylonjs/loaders";
 import * as BABYLON from "@babylonjs/core";
 import { HavokPhysicsWithBindings } from "@babylonjs/havok";
 import * as Hammer from "hammerjs";
+import Character from "./components/Character";
 
 // using CDN in index.html
 declare function HavokPhysics(): any;
@@ -15,6 +16,7 @@ class App {
     scene: BABYLON.Scene;
     havok!: HavokPhysicsWithBindings;
     camera!: BABYLON.ArcRotateCamera | BABYLON.FreeCamera;
+    character: Character | null;
     thirdperson: boolean = false;
     bowlingAlleyObjects!: {
         character: BABYLON.AbstractMesh[];
@@ -43,6 +45,7 @@ class App {
         this.engine.displayLoadingUI();
 
         this.scene = new BABYLON.Scene(this.engine);
+        this.character = new Character(this.scene);
 
         this.bowlingAlleyObjects = {
             ball: null!,
@@ -53,15 +56,17 @@ class App {
         };
 
         // wait until scene has physics then create scene
-        this.InitScene().then(async () => {
-            this.InitSceneCamera();
-            await this.CreateBowlingAlley(this.scene);
-            await this.CreatePins(this.scene);
-            await this.CreateBall(this.scene);
-            await this.CreateCharacter(this.scene);
-            this.CreateLight();
+        this.initScene().then(async () => {
+            this.initSceneCamera();
+            await this.createBowlingAlley(this.scene);
+            await this.createPins(this.scene);
+            await this.createBall(this.scene);
 
-            this.InitControls();
+            await this.character!.init();
+
+            this.createLight();
+
+            this.initControls();
             this.allowThrow = true;
 
             // hide loading screen
@@ -82,7 +87,7 @@ class App {
         });
     }
 
-    async InitScene(): Promise<void> {
+    async initScene(): Promise<void> {
         const envMapTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
             "/envMap/sky.env",
             this.scene,
@@ -102,7 +107,7 @@ class App {
         this.scene.collisionsEnabled = true;
     }
 
-    CleanUpCamera() {
+    cleanUpCamera(): void {
         if (this.camera) {
             this.scene.removeCamera(this.camera);
             this.camera.dispose();
@@ -114,28 +119,42 @@ class App {
         }
     }
 
-    InitFirstPersonController() {
-        this.CleanUpCamera();
+    initCharacter(): void {
+        if (this.character) return;
+        this.character = new Character(this.scene);
+        this.character.init();
+    }
 
-        this.camera = new BABYLON.FreeCamera(
+    disposeCharacter(): void {
+        this.character?.dispose();
+        this.character = null;
+    }
+
+    initFirstPersonController(pointerLock: boolean = true): void {
+        this.cleanUpCamera();
+        this.disposeCharacter();
+
+        this.camera = new BABYLON.UniversalCamera(
             "camera",
             new BABYLON.Vector3(0, 2.5, -2),
             this.scene,
         );
         this.camera.attachControl();
 
-        this.engine.enterPointerlock();
-        this.scene.onPointerDown = e => {
-            // left click
-            if (e.button === 0) this.engine.enterPointerlock();
+        if (pointerLock) {
+            this.engine.enterPointerlock();
+            this.scene.onPointerDown = e => {
+                // left click
+                if (e.button === 0) this.engine.enterPointerlock();
+            };
+        } else {
+            this.engine.exitPointerlock();
+            this.scene.onPointerDown = undefined;
+        }
 
-            // middle click
-            if (e.button === 1) this.engine.exitPointerlock();
-        };
-
-        this.camera.applyGravity = true;
-        this.camera.checkCollisions = true;
-        this.camera.ellipsoid = new BABYLON.Vector3(1, 1.25, 1);
+        this.camera.applyGravity = true; // apply gravity to the camera
+        this.camera.checkCollisions = true; // prevent walking through walls
+        this.camera.ellipsoid = new BABYLON.Vector3(1, 1.25, 1); // collision box
         this.camera.speed = 1.5; // walking speed
         this.camera.inertia = 0.5; // reduce slipping
         this.camera.minZ = 0.1; // prevent clipping
@@ -147,50 +166,9 @@ class App {
         this.camera.keysRight.push(68); // D
     }
 
-    InitThirdPersonController() {
-        this.CleanUpCamera();
-
-        this.camera = new BABYLON.ArcRotateCamera(
-            "camera",
-            -Math.PI * 0.5,
-            Math.PI * 0.5,
-            5,
-            BABYLON.Vector3.Zero(),
-            this.scene,
-        );
-
-        this.camera.position = new BABYLON.Vector3(0, 2.5, -3);
-        this.camera.setTarget(new BABYLON.Vector3(0, 2.49, -2.9));
-
-        // This attaches the camera to the canvas
-        this.camera.attachControl(this.canvas, true);
-
-        // prevent clipping
-        this.camera.minZ = 0.1;
-
-        this.camera.wheelPrecision = 0;
-
-        // camera min distance and max distance
-        this.camera.lowerRadiusLimit = 0;
-        this.camera.upperRadiusLimit = 0;
-
-        //  lower rotation sensitivity, higher value = less sensitive
-        this.camera.angularSensibilityX = 3000;
-        this.camera.angularSensibilityY = 3000;
-
-        // disable rotation using keyboard arrow key
-        this.camera.keysUp = [];
-        this.camera.keysDown = [];
-        this.camera.keysLeft = [];
-        this.camera.keysRight = [];
-
-        this.camera.checkCollisions = true;
-
-        this.thirdperson = true;
-    }
-
-    InitSceneCamera() {
-        this.CleanUpCamera();
+    initSceneCamera(): void {
+        this.cleanUpCamera();
+        this.initCharacter();
 
         this.camera = new BABYLON.ArcRotateCamera(
             "camera",
@@ -227,25 +205,25 @@ class App {
         this.camera.keysRight = [];
     }
 
-    InitControls() {
+    initControls(): void {
         // Keyboard input
         this.scene.onKeyboardObservable.add(kbInfo => {
             if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
-                if (!this.allowThrow) return;
                 switch (kbInfo.event.key.toLowerCase().trim()) {
                     case "1":
                         // switch to arc rotate camera by pressing 1
-                        this.InitSceneCamera();
+                        this.initSceneCamera();
                         break;
                     case "2":
-                        // switch to first person controller by pressing 2
-                        this.InitFirstPersonController();
+                        // switch to first person controller (with pointer lock) by pressing 2
+                        this.initFirstPersonController(true);
                         break;
                     case "3":
-                        // switch to third person controller by pressing 3
-                        this.InitThirdPersonController();
+                        // switch to first person controller (without pointer lock) by pressing 3
+                        this.initFirstPersonController(false);
                         break;
                     case "":
+                        if (!this.allowThrow) return;
                         this.bowlingAlleyObjects.ballBody.body.applyImpulse(
                             new BABYLON.Vector3(this.throwAngle, 0, 100),
                             this.bowlingAlleyObjects.ball.getAbsolutePosition(),
@@ -254,6 +232,8 @@ class App {
                         break;
                     case "w":
                     case "arrowup":
+                        this.character?.moveForward();
+                        if (!this.allowThrow) return;
                         this.throwAngle += this.throwAngle >= 5 ? 0 : 0.5;
                         this.bowlingAlleyObjects.ball.rotate(
                             BABYLON.Vector3.Up(),
@@ -262,6 +242,8 @@ class App {
                         break;
                     case "s":
                     case "arrowdown":
+                        this.character?.moveBackward();
+                        if (!this.allowThrow) return;
                         this.throwAngle -= this.throwAngle <= -5 ? 0 : 0.5;
                         this.bowlingAlleyObjects.ball.rotate(
                             BABYLON.Vector3.Up(),
@@ -270,11 +252,15 @@ class App {
                         break;
                     case "a":
                     case "arrowleft":
+                        this.character?.moveLeft();
+                        if (!this.allowThrow) return;
                         if (this.bowlingAlleyObjects.ball.position.x > 1.8) break;
                         this.bowlingAlleyObjects.ball.position.x += 0.05;
                         break;
                     case "d":
                     case "arrowright":
+                        this.character?.moveRight();
+                        if (!this.allowThrow) return;
                         if (this.bowlingAlleyObjects.ball.position.x < -1.8) break;
                         this.bowlingAlleyObjects.ball.position.x -= 0.05;
                         break;
@@ -313,7 +299,7 @@ class App {
         });
     }
 
-    CreateLight() {
+    createLight(): void {
         // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
         const hemiLight = new BABYLON.HemisphericLight(
             "hemiLight",
@@ -336,7 +322,7 @@ class App {
         dirLight.shadowMinZ = 10;
         dirLight.shadowMaxZ = 60;
 
-        // this.CreateLightGizmo(dirLight);
+        // this.createLightGizmo(dirLight);
 
         // Shadows
         const shadowGenerator = new BABYLON.ShadowGenerator(2048, dirLight);
@@ -349,7 +335,7 @@ class App {
         // low quality for better performance
         // shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_LOW;
 
-        this.bowlingAlleyObjects.character.forEach(mesh => {
+        this.character!.meshes.forEach(mesh => {
             mesh.receiveShadows = true;
             shadowGenerator.addShadowCaster(mesh);
         });
@@ -367,7 +353,7 @@ class App {
         });
     }
 
-    CreateLightGizmo(customLight: BABYLON.Light) {
+    createLightGizmo(customLight: BABYLON.Light): void {
         const lightGizmo = new BABYLON.LightGizmo();
         lightGizmo.scaleRatio = 2;
         lightGizmo.light = customLight;
@@ -379,25 +365,7 @@ class App {
         gizmoManager.attachToMesh(lightGizmo.attachedMesh);
     }
 
-    async CreateCharacter(scene: BABYLON.Scene) {
-        const { meshes } = await BABYLON.SceneLoader.ImportMeshAsync(
-            "",
-            "/models/",
-            "character.glb",
-            scene,
-        );
-
-        this.bowlingAlleyObjects.character = meshes;
-
-        // play Idle animation
-        const idleAnim = scene.getAnimationGroupByName("Walking")!;
-        idleAnim.start(true, 1.0, idleAnim.from, idleAnim.to, false);
-
-        meshes[0].position = new BABYLON.Vector3(0, 0, -2);
-        meshes[0].scaling.scaleInPlace(1.5);
-    }
-
-    async CreateBowlingAlley(scene: BABYLON.Scene) {
+    async createBowlingAlley(scene: BABYLON.Scene): Promise<void> {
         const { meshes } = await BABYLON.SceneLoader.ImportMeshAsync(
             "",
             "/models/",
@@ -439,7 +407,7 @@ class App {
         ground.material.alpha = 0;
     }
 
-    async CreatePins(scene: BABYLON.Scene): Promise<void> {
+    async createPins(scene: BABYLON.Scene): Promise<void> {
         const { meshes } = await BABYLON.SceneLoader.ImportMeshAsync(
             "",
             "/models/",
@@ -485,7 +453,7 @@ class App {
         });
     }
 
-    async CreateBall(scene: BABYLON.Scene) {
+    async createBall(scene: BABYLON.Scene): Promise<void> {
         const result = await BABYLON.SceneLoader.ImportMeshAsync(
             "",
             "/models/",
@@ -508,14 +476,6 @@ class App {
         ballAggregate.body.disablePreStep = false;
 
         this.bowlingAlleyObjects.ballBody = ballAggregate;
-    }
-
-    CharacterMoveForward() {
-        this.bowlingAlleyObjects.character[0].translate(
-            BABYLON.Vector3.Forward(),
-            0.1,
-            BABYLON.Space.LOCAL,
-        );
     }
 }
 
