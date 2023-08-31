@@ -16,7 +16,7 @@ class App {
     havok!: HavokPhysicsWithBindings;
     camera!: BABYLON.ArcRotateCamera | BABYLON.FreeCamera;
     bowlingAlleyMesh!: {
-        character: BABYLON.AbstractMesh;
+        character: BABYLON.AbstractMesh[];
         ball: BABYLON.AbstractMesh;
         pins: BABYLON.InstancedMesh[];
         facility: BABYLON.AbstractMesh[];
@@ -40,7 +40,7 @@ class App {
 
         this.bowlingAlleyMesh = {
             ball: null!,
-            character: null!,
+            character: [],
             pins: [],
             facility: [],
         };
@@ -232,6 +232,11 @@ class App {
         // low quality for better performance
         // shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_LOW;
 
+        this.bowlingAlleyMesh.character.forEach(mesh => {
+            mesh.receiveShadows = true;
+            shadowGenerator.addShadowCaster(mesh);
+        });
+
         this.bowlingAlleyMesh.ball.receiveShadows = true;
         shadowGenerator.addShadowCaster(this.bowlingAlleyMesh.ball);
 
@@ -265,6 +270,8 @@ class App {
             scene,
         );
 
+        this.bowlingAlleyMesh.character = meshes;
+
         // play Idle animation
         const idleAnim = scene.getAnimationGroupByName("Walking")!;
         idleAnim.start(true, 1.0, idleAnim.from, idleAnim.to, false);
@@ -280,10 +287,6 @@ class App {
             "bowling-alley.glb",
             scene,
         );
-
-        for (const mesh of meshes) {
-            mesh.receiveShadows = true;
-        }
 
         meshes.forEach(mesh => {
             mesh.scaling.scaleInPlace(6);
