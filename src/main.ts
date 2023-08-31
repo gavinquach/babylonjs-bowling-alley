@@ -61,8 +61,9 @@ class App {
             });
 
             const handleKeydown = (ev: KeyboardEvent) => {
-                // hide/show the Inspector by pressing i
-                if (ev.key === "i") {
+                // hide/show the Inspector by pressing Shift + Ctrl + Alt + I
+                // Shift+Ctrl+Alt+I
+                if (ev.shiftKey && ev.ctrlKey && ev.altKey && ev.keyCode === 73) {
                     if (this.scene.debugLayer.isVisible()) {
                         this.scene.debugLayer.hide();
                     } else {
