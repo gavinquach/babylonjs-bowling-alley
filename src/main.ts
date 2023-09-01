@@ -5,7 +5,9 @@ import "@babylonjs/loaders";
 import * as BABYLON from "@babylonjs/core";
 import { HavokPhysicsWithBindings } from "@babylonjs/havok";
 import * as Hammer from "hammerjs";
+
 import Character from "./components/Character";
+import CharacterController from "./components/CharacterController";
 
 // using CDN in index.html
 declare function HavokPhysics(): any;
@@ -15,8 +17,9 @@ class App {
     engine: BABYLON.Engine;
     scene: BABYLON.Scene;
     havok!: HavokPhysicsWithBindings;
-    camera!: BABYLON.ArcRotateCamera | BABYLON.FreeCamera;
-    character: Character | null;
+    camera!: BABYLON.ArcRotateCamera | BABYLON.UniversalCamera;
+    character?: Character;
+    characterController?: CharacterController;
     thirdperson: boolean = false;
     bowlingAlleyObjects!: {
         character: BABYLON.AbstractMesh[];
@@ -57,12 +60,20 @@ class App {
 
         // wait until scene has physics then create scene
         this.initScene().then(async () => {
-            this.initSceneCamera();
+            // this.initSceneCamera();
             await this.createBowlingAlley(this.scene);
             await this.createPins(this.scene);
             await this.createBall(this.scene);
 
-            await this.character!.init();
+            if (this.character) {
+                this.initThirdPersonController();
+                await this.character.init();
+                this.characterController = new CharacterController(
+                    this.character!.root as BABYLON.Mesh,
+                    this.camera as BABYLON.ArcRotateCamera,
+                    this.scene,
+                );
+            }
 
             this.createLight();
 
@@ -107,29 +118,6 @@ class App {
         this.scene.collisionsEnabled = true;
     }
 
-    cleanUpCamera(): void {
-        if (this.camera) {
-            this.scene.removeCamera(this.camera);
-            this.camera.dispose();
-
-            this.engine.exitPointerlock();
-            this.scene.onPointerDown = undefined;
-
-            this.thirdperson = false;
-        }
-    }
-
-    initCharacter(): void {
-        if (this.character) return;
-        this.character = new Character(this.scene);
-        this.character.init();
-    }
-
-    disposeCharacter(): void {
-        this.character?.dispose();
-        this.character = null;
-    }
-
     initFirstPersonController(pointerLock: boolean = true): void {
         this.cleanUpCamera();
         this.disposeCharacter();
@@ -164,6 +152,43 @@ class App {
         this.camera.keysLeft.push(65); // A
         this.camera.keysDown.push(83); // S
         this.camera.keysRight.push(68); // D
+    }
+
+    initThirdPersonController(): void {
+        this.cleanUpCamera();
+
+        this.camera = new BABYLON.ArcRotateCamera(
+            "camera",
+            -Math.PI * 0.5,
+            Math.PI * 0.5,
+            5,
+            new BABYLON.Vector3(0, 2.5, -2), // target
+            this.scene,
+        );
+
+        this.camera.position = new BABYLON.Vector3(0, 3, -6);
+
+        // This attaches the camera to the canvas
+        this.camera.attachControl(this.canvas, true);
+
+        // prevent clipping
+        this.camera.minZ = 0.1;
+
+        this.camera.wheelPrecision = 100;
+
+        // camera min distance and max distance
+        this.camera.lowerRadiusLimit = 0.5;
+        this.camera.upperRadiusLimit = 5;
+
+        //  lower rotation sensitivity, higher value = less sensitive
+        this.camera.angularSensibilityX = 2000;
+        this.camera.angularSensibilityY = 2000;
+
+        // disable rotation using keyboard arrow key
+        this.camera.keysUp = [];
+        this.camera.keysDown = [];
+        this.camera.keysLeft = [];
+        this.camera.keysRight = [];
     }
 
     initSceneCamera(): void {
@@ -207,20 +232,37 @@ class App {
 
     initControls(): void {
         // Keyboard input
-        this.scene.onKeyboardObservable.add(kbInfo => {
+        this.scene.onKeyboardObservable.add(async kbInfo => {
             if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
                 switch (kbInfo.event.key.toLowerCase().trim()) {
                     case "1":
                         // switch to arc rotate camera by pressing 1
                         this.initSceneCamera();
+                        this.disposeCharacterController();
                         break;
                     case "2":
                         // switch to first person controller (with pointer lock) by pressing 2
+                        this.disposeCharacterController();
                         this.initFirstPersonController(true);
                         break;
                     case "3":
                         // switch to first person controller (without pointer lock) by pressing 3
+                        this.disposeCharacterController();
                         this.initFirstPersonController(false);
+                        break;
+                    case "4":
+                        // switch to third person controller by pressing 4
+                        this.initThirdPersonController();
+
+                        if (!this.character) {
+                            this.character = new Character(this.scene);
+                            await this.character.init();
+                        }
+                        this.characterController = new CharacterController(
+                            this.character!.root as BABYLON.Mesh,
+                            this.camera as BABYLON.ArcRotateCamera,
+                            this.scene,
+                        );
                         break;
                     case "":
                         if (!this.allowThrow) return;
@@ -232,7 +274,6 @@ class App {
                         break;
                     case "w":
                     case "arrowup":
-                        this.character?.moveForward();
                         if (!this.allowThrow) return;
                         this.throwAngle += this.throwAngle >= 5 ? 0 : 0.5;
                         this.bowlingAlleyObjects.ball.rotate(
@@ -242,7 +283,6 @@ class App {
                         break;
                     case "s":
                     case "arrowdown":
-                        this.character?.moveBackward();
                         if (!this.allowThrow) return;
                         this.throwAngle -= this.throwAngle <= -5 ? 0 : 0.5;
                         this.bowlingAlleyObjects.ball.rotate(
@@ -252,14 +292,12 @@ class App {
                         break;
                     case "a":
                     case "arrowleft":
-                        this.character?.moveLeft();
                         if (!this.allowThrow) return;
                         if (this.bowlingAlleyObjects.ball.position.x > 1.8) break;
                         this.bowlingAlleyObjects.ball.position.x += 0.05;
                         break;
                     case "d":
                     case "arrowright":
-                        this.character?.moveRight();
                         if (!this.allowThrow) return;
                         if (this.bowlingAlleyObjects.ball.position.x < -1.8) break;
                         this.bowlingAlleyObjects.ball.position.x -= 0.05;
@@ -335,7 +373,7 @@ class App {
         // low quality for better performance
         // shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_LOW;
 
-        this.character!.meshes.forEach(mesh => {
+        this.character?.meshes.forEach(mesh => {
             mesh.receiveShadows = true;
             shadowGenerator.addShadowCaster(mesh);
         });
@@ -476,6 +514,40 @@ class App {
         ballAggregate.body.disablePreStep = false;
 
         this.bowlingAlleyObjects.ballBody = ballAggregate;
+    }
+
+    cleanUpCamera(): void {
+        this.scene.removeCamera(this.camera);
+        if (this.camera instanceof BABYLON.ArcRotateCamera) {
+            this.camera.dispose();
+        }
+
+        this.engine.exitPointerlock();
+        this.scene.onPointerDown = undefined;
+
+        this.thirdperson = false;
+    }
+
+    initCharacter(): void {
+        if (this.character) return;
+        this.character = new Character(this.scene);
+        this.character.init();
+    }
+
+    async initCharacterAsync(): Promise<void> {
+        if (this.character) return;
+        this.character = new Character(this.scene);
+        await this.character.init();
+    }
+
+    disposeCharacter(): void {
+        this.character?.dispose();
+        this.character = null!;
+    }
+
+    disposeCharacterController(): void {
+        this.characterController?.dispose();
+        this.characterController = null!;
     }
 }
 
