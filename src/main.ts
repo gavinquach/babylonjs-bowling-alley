@@ -87,12 +87,25 @@ class App {
                 if (this.scene) this.scene.render();
             });
 
+            const handleKeydown = (ev: KeyboardEvent) => {
+                // hide/show the Inspector by pressing Shift + Ctrl + Alt + I
+                if (ev.shiftKey && ev.ctrlKey && ev.altKey && ev.inputIndex === 73) {
+                    if (this.scene.debugLayer.isVisible()) {
+                        this.scene.debugLayer.hide();
+                    } else {
+                        this.scene.debugLayer.show();
+                    }
+                }
+            };
+
             // the canvas/window resize event handler
             const handleResize = () => this.engine.resize();
+            window.addEventListener("keydown", handleKeydown);
             window.addEventListener("resize", handleResize);
 
             // remove event listener
             this.scene.onDispose = () => {
+                window.removeEventListener("keydown", handleKeydown);
                 window.removeEventListener("resize", handleResize);
             };
         });
@@ -416,11 +429,12 @@ class App {
             mesh.position = new BABYLON.Vector3(1.34, 3.38, 58);
 
             // lane of user, enable physics collision
-            if (
-                mesh.name === "polygon1.001" ||
-                mesh.name === "polygon133" ||
-                mesh.name === "polygon139"
-            ) {
+            // if (
+            //     mesh.name === "polygon1.001" ||
+            //     mesh.name === "polygon133" ||
+            //     mesh.name === "polygon139"
+            // ) {
+            if (mesh.id !== "__root__" && mesh.name !== "polygon31") {
                 new BABYLON.PhysicsAggregate(
                     mesh,
                     BABYLON.PhysicsShapeType.MESH,
@@ -428,21 +442,22 @@ class App {
                     scene,
                 );
             }
+            // }
         });
 
         this.bowlingAlleyObjects.facility = meshes;
 
-        // Create invisible floor as ground to walk on with physics
-        const ground = BABYLON.MeshBuilder.CreateGround(
-            "ground",
-            { width: 140, height: 66 },
-            scene,
-        );
-        ground.position.z = 2.5;
-        ground.position.y = -0.1;
-        ground.checkCollisions = true;
-        ground.material = new BABYLON.StandardMaterial("groundMat", scene);
-        ground.material.alpha = 0;
+        // // Create invisible floor as ground to walk on with physics
+        // const ground = BABYLON.MeshBuilder.CreateGround(
+        //     "ground",
+        //     { width: 140, height: 66 },
+        //     scene,
+        // );
+        // ground.position.z = 2.5;
+        // ground.position.y = -0.1;
+        // ground.checkCollisions = true;
+        // ground.material = new BABYLON.StandardMaterial("groundMat", scene);
+        // ground.material.alpha = 0;
     }
 
     async createPins(scene: BABYLON.Scene): Promise<void> {
