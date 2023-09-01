@@ -220,7 +220,7 @@ class CharacterController {
             //     this.mesh.rotation,
             // );
 
-            console.log(this.mesh.rotation);
+            this.moveDirection.y = 0;
 
             this.mesh.moveWithCollisions(this.moveDirection);
 
@@ -286,72 +286,6 @@ class CharacterController {
             new Vector3(0, 0, 0),
         );
         console.log("called jump");
-    }
-
-    /**
-     * rotate avatar with respect to camera direction.
-     */
-    private rotateMeshToCamera() {
-        const _rhsSign = this.camera.getScene().useRightHandedSystem ? -1 : 1;
-        const av2cam = Math.PI * 0.5;
-        const cameraAngle = av2cam - this.camera.alpha;
-        switch (true) {
-            case (this.keyStatus["w"] && this.keyStatus["d"]) ||
-                (this.keyStatus["arrowup"] && this.keyStatus["arrowright"]):
-                this.mesh.rotation.y = cameraAngle + (_rhsSign * Math.PI) * 0.25;
-                break;
-            case (this.keyStatus["w"] && this.keyStatus["a"]) ||
-                (this.keyStatus["arrowup"] && this.keyStatus["arrowleft"]):
-                this.mesh.rotation.y = cameraAngle - (_rhsSign * Math.PI) * 0.25;
-                break;
-            case (this.keyStatus["s"] && this.keyStatus["d"]) ||
-                (this.keyStatus["arrowdown"] && this.keyStatus["arrowright"]):
-                this.mesh.rotation.y = cameraAngle + (_rhsSign * 3 * Math.PI) * 0.25;
-                break;
-            case (this.keyStatus["s"] && this.keyStatus["a"]) ||
-                (this.keyStatus["arrowdown"] && this.keyStatus["arrowleft"]):
-                this.mesh.rotation.y = cameraAngle - (_rhsSign * 3 * Math.PI) * 0.25;
-                break;
-            case this.keyStatus["w"] || this.keyStatus["arrowup"]:
-                this.mesh.rotation.y = cameraAngle;
-                break;
-            case this.keyStatus["s"] || this.keyStatus["arrowdown"]:
-                this.mesh.rotation.y = cameraAngle + Math.PI;
-                break;
-            case this.keyStatus["d"] || this.keyStatus["arrowright"]:
-                this.mesh.rotation.y = cameraAngle + (_rhsSign * Math.PI) / 2;
-                break;
-            case this.keyStatus["a"] || this.keyStatus["arrowleft"]:
-                this.mesh.rotation.y = cameraAngle - (_rhsSign * Math.PI) / 2;
-                break;
-        }
-        console.log(this.mesh.rotation);
-    }
-
-    private calculateDirectionOffset(): number {
-        let directionOffset = 0; // s
-
-        if (this.keyStatus["s"] || this.keyStatus["arrowdown"]) {
-            if (this.keyStatus["d"] || this.keyStatus["arrowright"]) {
-                directionOffset = Math.PI * 0.25; // s + d
-            } else if (this.keyStatus["a"] || this.keyStatus["arrowleft"]) {
-                directionOffset = -Math.PI * 0.25; // s + a
-            }
-        } else if (this.keyStatus["w"] || this.keyStatus["arrowup"]) {
-            if (this.keyStatus["d"] || this.keyStatus["arrowright"]) {
-                directionOffset = Math.PI * 0.25 + Math.PI * 0.5; // w + d
-            } else if (this.keyStatus["a"] || this.keyStatus["arrowleft"]) {
-                directionOffset = -Math.PI * 0.25 - Math.PI * 0.5; // w + a
-            } else {
-                directionOffset = Math.PI; // w
-            }
-        } else if (this.keyStatus["d"] || this.keyStatus["arrowright"]) {
-            directionOffset = Math.PI * 0.5; // d
-        } else if (this.keyStatus["a"] || this.keyStatus["arrowleft"]) {
-            directionOffset = -Math.PI * 0.5; // a
-        }
-
-        return directionOffset;
     }
 
     public dispose(): void {
