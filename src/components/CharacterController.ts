@@ -220,10 +220,14 @@ class CharacterController {
             // get direction offset
             const directionOffset = this.calculateDirectionOffset();
 
-            // rotate mesh with respect to camera direction
-            this.mesh.rotationQuaternion = Quaternion.RotationAxis(
-                Vector3.Up(),
-                angleYCameraDirection + directionOffset,
+            // rotate mesh with respect to camera direction with lerp
+            this.mesh.rotationQuaternion = Quaternion.Slerp(
+                this.mesh.rotationQuaternion!,
+                Quaternion.RotationAxis(
+                    Vector3.Up(),
+                    angleYCameraDirection + directionOffset,
+                ),
+                0.2,
             );
 
             // ground the mesh to prevent it from flying
