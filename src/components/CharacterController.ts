@@ -150,43 +150,6 @@ class CharacterController {
         const right = !!this.keyStatus["d"] || !!this.keyStatus["arrowright"];
         const shift = !!this.keyStatus["Shift"];
 
-        if (forward) {
-            this.animations.walk.start(
-                true,
-                this.animSpeed,
-                this.animations.walk.from,
-                this.animations.walk.to,
-                false,
-            );
-        }
-        if (backward) {
-            this.animations.walk.start(
-                true,
-                this.animSpeed,
-                this.animations.walk.to,
-                this.animations.walk.from,
-                false,
-            );
-        }
-        if (left) {
-            this.animations.walk.start(
-                true,
-                this.animSpeed,
-                this.animations.walk.from,
-                this.animations.walk.to,
-                false,
-            );
-        }
-        if (right) {
-            this.animations.walk.start(
-                true,
-                this.animSpeed,
-                this.animations.walk.from,
-                this.animations.walk.to,
-                false,
-            );
-        }
-
         if (forward || backward || left || right) {
             this.isMoving = true;
         } else {
@@ -194,6 +157,14 @@ class CharacterController {
         }
 
         if (this.isMoving) {
+            this.animations.walk.start(
+                true,
+                this.animSpeed,
+                this.animations.walk.from,
+                this.animations.walk.to,
+                false,
+            );
+
             this.frontVector.set(0, 0, forward ? 1 : backward ? -1 : 0);
             this.sideVector.set(left ? 1 : right ? -1 : 0, 0, 0);
 

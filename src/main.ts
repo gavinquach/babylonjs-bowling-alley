@@ -24,7 +24,7 @@ class App {
     bowlingAlleyObjects!: {
         character: BABYLON.AbstractMesh[];
         ball: BABYLON.AbstractMesh;
-        ballBody: BABYLON.PhysicsAggregate;
+        ballBody: BABYLON.PhysicsBody;
         pins: BABYLON.InstancedMesh[];
         facility: BABYLON.AbstractMesh[];
     };
@@ -279,7 +279,7 @@ class App {
                         break;
                     case "":
                         if (!this.allowThrow) return;
-                        this.bowlingAlleyObjects.ballBody.body.applyImpulse(
+                        this.bowlingAlleyObjects.ballBody.applyImpulse(
                             new BABYLON.Vector3(this.throwAngle, 0, 100),
                             this.bowlingAlleyObjects.ball.getAbsolutePosition(),
                         );
@@ -332,7 +332,7 @@ class App {
             switch (e.direction) {
                 // swipe up to throw ball
                 case Hammer.DIRECTION_UP:
-                    this.bowlingAlleyObjects.ballBody.body.applyImpulse(
+                    this.bowlingAlleyObjects.ballBody.applyImpulse(
                         new BABYLON.Vector3(this.throwAngle, 0, 100),
                         this.bowlingAlleyObjects.ball.getAbsolutePosition(),
                     );
@@ -526,9 +526,13 @@ class App {
             { mass: 4, restitution: 0.25 },
             scene,
         );
-        ballAggregate.body.disablePreStep = false;
+        this.bowlingAlleyObjects.ballBody = ballAggregate.body;
 
-        this.bowlingAlleyObjects.ballBody = ballAggregate;
+        ballAggregate.body.disablePreStep = false;
+        // Turn disablePreStep on again for maximum performance
+        scene.onAfterRenderObservable.addOnce(() => {
+            ballAggregate.body.disablePreStep = true;
+        });
     }
 
     cleanUpCamera(): void {
