@@ -308,7 +308,6 @@ class CharacterController {
             case this.keyStatus["w"] || this.keyStatus["arrowup"]:
                 switch (true) {
                     case this.keyStatus["d"] || this.keyStatus["arrowright"]:
-                        201;
                         directionOffset = Math.PI * 0.25; // w + d
                         break;
                     case this.keyStatus["a"] || this.keyStatus["arrowleft"]:
