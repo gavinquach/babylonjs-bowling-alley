@@ -22,6 +22,7 @@ class App {
     characterController?: CharacterController;
     thirdperson: boolean = false;
     bowlingAlleyObjects!: {
+        ground: BABYLON.Mesh;
         character: BABYLON.AbstractMesh[];
         ball: BABYLON.AbstractMesh;
         ballBody: BABYLON.PhysicsBody;
@@ -51,6 +52,7 @@ class App {
         this.character = new Character(this.scene);
 
         this.bowlingAlleyObjects = {
+            ground: null!,
             ball: null!,
             ballBody: null!,
             character: [],
@@ -132,7 +134,7 @@ class App {
     }
 
     initFirstPersonController(pointerLock: boolean = true): void {
-        this.cleanUpCamera();
+        this.resetCamera();
         this.disposeCharacter();
 
         this.camera = new BABYLON.UniversalCamera(
@@ -156,7 +158,7 @@ class App {
         this.camera.applyGravity = true; // apply gravity to the camera
         this.camera.checkCollisions = true; // prevent walking through walls
         this.camera.ellipsoid = new BABYLON.Vector3(1, 1.25, 1); // collision box
-        this.camera.speed = 1.5; // walking speed
+        this.camera.speed = 1; // walking speed
         this.camera.inertia = 0.5; // reduce slipping
         this.camera.minZ = 0.1; // prevent clipping
         this.camera.angularSensibility = 1500; // mouse sensitivity: higher value = less sensitive
@@ -165,10 +167,25 @@ class App {
         this.camera.keysLeft.push(65); // A
         this.camera.keysDown.push(83); // S
         this.camera.keysRight.push(68); // D
+
+        // Create invisible floor as ground to walk on with physics
+        this.bowlingAlleyObjects.ground = BABYLON.MeshBuilder.CreateGround(
+            "ground",
+            { width: 140, height: 66 },
+            this.scene,
+        );
+        this.bowlingAlleyObjects.ground.position.z = 2.5;
+        this.bowlingAlleyObjects.ground.position.y = -0.1;
+        this.bowlingAlleyObjects.ground.checkCollisions = true;
+        this.bowlingAlleyObjects.ground.material = new BABYLON.StandardMaterial(
+            "groundMat",
+            this.scene,
+        );
+        this.bowlingAlleyObjects.ground.material.alpha = 0;
     }
 
     initThirdPersonController(): void {
-        this.cleanUpCamera();
+        this.resetCamera();
 
         this.camera = new BABYLON.ArcRotateCamera(
             "camera",
@@ -205,7 +222,7 @@ class App {
     }
 
     initSceneCamera(): void {
-        this.cleanUpCamera();
+        this.resetCamera();
         this.initCharacter();
 
         this.camera = new BABYLON.ArcRotateCamera(
@@ -446,18 +463,6 @@ class App {
         });
 
         this.bowlingAlleyObjects.facility = meshes;
-
-        // // Create invisible floor as ground to walk on with physics
-        // const ground = BABYLON.MeshBuilder.CreateGround(
-        //     "ground",
-        //     { width: 140, height: 66 },
-        //     scene,
-        // );
-        // ground.position.z = 2.5;
-        // ground.position.y = -0.1;
-        // ground.checkCollisions = true;
-        // ground.material = new BABYLON.StandardMaterial("groundMat", scene);
-        // ground.material.alpha = 0;
     }
 
     async createPins(scene: BABYLON.Scene): Promise<void> {
@@ -535,7 +540,7 @@ class App {
         });
     }
 
-    cleanUpCamera(): void {
+    resetCamera(): void {
         this.scene.removeCamera(this.camera);
         if (this.camera instanceof BABYLON.ArcRotateCamera) {
             this.camera.dispose();
@@ -545,6 +550,15 @@ class App {
         this.scene.onPointerDown = undefined;
 
         this.thirdperson = false;
+
+        if (this.bowlingAlleyObjects.ground !== null) {
+            this.scene.removeMesh(this.bowlingAlleyObjects.ground);
+            this.scene.removeMaterial(this.bowlingAlleyObjects.ground.material!);
+            this.bowlingAlleyObjects.ground.material!.dispose();
+            this.bowlingAlleyObjects.ground.dispose();
+
+            this.bowlingAlleyObjects.ground = null!;
+        }
     }
 
     initCharacter(): void {

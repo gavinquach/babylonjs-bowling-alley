@@ -19,6 +19,7 @@ class CharacterController {
     } = {};
     private isActive: boolean = false;
     private isMoving: boolean = false;
+    private isRunning: boolean = false;
 
     private keyStatus: {
         [key: string]: boolean;
@@ -40,8 +41,9 @@ class CharacterController {
     private frontVector: Vector3 = new Vector3(0, 0, 0);
     private sideVector: Vector3 = new Vector3(0, 0, 0);
 
-    private static readonly WALK_SPEED: number = 0.03;
     private static readonly CROUCH_SPEED: number = 0.015;
+    private static readonly WALK_SPEED: number = 0.03;
+    private static readonly RUN_SPEED: number = 0.08;
     private static readonly JUMP_FORCE: number = 50;
 
     private animSpeed: number = 1.0;
@@ -53,8 +55,10 @@ class CharacterController {
         this.scene = scene;
 
         this.animations.idle = this.scene.getAnimationGroupByName("Idle")!;
-        this.animations.walk = this.scene.getAnimationGroupByName("Walking")!;
-        this.animations.crouch = this.scene.getAnimationGroupByName("Crouching")!;
+        this.animations.walk = this.scene.getAnimationGroupByName("Walk")!;
+        this.animations.crouch = this.scene.getAnimationGroupByName("Crouch")!;
+        this.animations.run = this.scene.getAnimationGroupByName("Run")!;
+        this.animations.rumba = this.scene.getAnimationGroupByName("RumbaDance")!;
         this.animations.sneakwalk =
             this.scene.getAnimationGroupByName("SneakWalk")!;
 
@@ -73,6 +77,15 @@ class CharacterController {
         this.scene.actionManager.registerAction(
             new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, e => {
                 let key = e.sourceEvent.key;
+
+                if (key === "Shift") {
+                    // slow down if shift is held
+                    this.moveSpeed = CharacterController.CROUCH_SPEED;
+                }
+                if (key === "Control") {
+                    this.toggleRun();
+                }
+
                 if (key !== "Shift") {
                     key = key.toLowerCase();
                 }
@@ -86,6 +99,15 @@ class CharacterController {
         this.scene.actionManager.registerAction(
             new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, e => {
                 let key = e.sourceEvent.key;
+
+                if (key === "Shift") {
+                    if (!this.isRunning) {
+                        this.moveSpeed = CharacterController.WALK_SPEED;
+                    } else {
+                        this.moveSpeed = CharacterController.RUN_SPEED;
+                    }
+                }
+
                 if (key !== "Shift") {
                     key = key.toLowerCase();
                 }
@@ -157,13 +179,25 @@ class CharacterController {
         }
 
         if (this.isMoving) {
-            this.animations.walk.start(
-                true,
-                this.animSpeed,
-                this.animations.walk.from,
-                this.animations.walk.to,
-                false,
-            );
+            if (!this.isRunning) {
+                this.animations.run.stop();
+                this.animations.walk.start(
+                    true,
+                    this.animSpeed,
+                    this.animations.walk.from,
+                    this.animations.walk.to,
+                    false,
+                );
+            } else {
+                this.animations.walk.stop();
+                this.animations.run.start(
+                    true,
+                    this.animSpeed,
+                    this.animations.run.from,
+                    this.animations.run.to,
+                    false,
+                );
+            }
 
             this.frontVector.set(0, 0, forward ? 1 : backward ? -1 : 0);
             this.sideVector.set(left ? 1 : right ? -1 : 0, 0, 0);
@@ -187,7 +221,7 @@ class CharacterController {
                 this.camera.position.x - this.mesh.position.x,
                 this.camera.position.z - this.mesh.position.z,
             );
-            
+
             // get direction offset
             const directionOffset = this.calculateDirectionOffset();
 
@@ -208,13 +242,12 @@ class CharacterController {
             this.mesh.moveWithCollisions(this.moveDirection);
 
             if (shift) {
-                // slow down if shift is held
-                this.moveSpeed = CharacterController.CROUCH_SPEED;
-
                 // play sneakwalk animation
                 this.animations.idle.stop();
                 this.animations.walk.stop();
                 this.animations.crouch.stop();
+                this.animations.run.stop();
+                this.animations.rumba.stop();
                 this.animations.sneakwalk.start(
                     true,
                     1.0,
@@ -227,6 +260,8 @@ class CharacterController {
             // play idle animation is no movement keys are pressed
             this.animations.walk.stop();
             this.animations.crouch.stop();
+            this.animations.run.stop();
+            this.animations.rumba.stop();
             this.animations.sneakwalk.stop();
             this.animations.idle.start(
                 true,
@@ -247,23 +282,6 @@ class CharacterController {
                 );
             }
         }
-
-        if (shift) {
-            this.moveSpeed = CharacterController.CROUCH_SPEED;
-            if (!this.isMoving) {
-                this.animations.crouch.start(
-                    true,
-                    1.0,
-                    this.animations.crouch.from,
-                    this.animations.crouch.to,
-                    false,
-                );
-            }
-        } else {
-            this.moveSpeed = CharacterController.WALK_SPEED;
-            if (this.isMoving) {
-            }
-        }
     }
 
     private jump(): void {
@@ -273,6 +291,13 @@ class CharacterController {
             new Vector3(0, 0, 0),
         );
         console.log("called jump");
+    }
+
+    private toggleRun(): void {
+        this.isRunning = !this.isRunning;
+        this.moveSpeed = this.isRunning
+            ? CharacterController.RUN_SPEED
+            : CharacterController.WALK_SPEED;
     }
 
     private calculateDirectionOffset(): number {
