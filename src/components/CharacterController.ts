@@ -5,6 +5,7 @@ import {
     ArcRotateCamera,
     ExecuteCodeAction,
     KeyboardEventTypes,
+    Quaternion,
     Scene,
     Vector3,
 } from "@babylonjs/core";
@@ -214,11 +215,19 @@ class CharacterController {
                 this.moveDirection,
             );
 
-            // rotate avatar with respect to camera direction.
-            // this.mesh.rotation.rotateByQuaternionToRef(
-            //     this.camera.absoluteRotation,
-            //     this.mesh.rotation,
-            // );
+            // rotate avatar with respect to camera direction
+            // calculate towards camera direction
+            const angleYCameraDirection = Math.atan2(
+                this.camera.position.x - this.mesh.position.x,
+                this.camera.position.z - this.mesh.position.z,
+            );
+
+            const directionOffset = this.calculateDirectionOffset();
+
+            this.mesh.rotationQuaternion = Quaternion.RotationAxis(
+                Vector3.Up(),
+                angleYCameraDirection + directionOffset,
+            );
 
             this.moveDirection.y = 0;
 
@@ -286,6 +295,51 @@ class CharacterController {
             new Vector3(0, 0, 0),
         );
         console.log("called jump");
+    }
+
+    private calculateDirectionOffset(): number {
+        let directionOffset = 0; // w
+
+        // switch case version
+        switch (true) {
+            case this.keyStatus["w"] || this.keyStatus["arrowup"]:
+                switch (true) {
+                    case this.keyStatus["d"] || this.keyStatus["arrowright"]:201
+                        directionOffset = Math.PI * 0.25; // w + d
+                        break;
+                    case this.keyStatus["a"] || this.keyStatus["arrowleft"]:
+                        directionOffset = -Math.PI * 0.25; // w + a
+                        break;
+                    default:
+                        directionOffset = 0; // w
+                        break;
+                }
+                break;
+            case this.keyStatus["s"] || this.keyStatus["arrowdown"]:
+                switch (true) {
+                    case this.keyStatus["d"] || this.keyStatus["arrowright"]:
+                        directionOffset = Math.PI * 0.25 + Math.PI * 0.5; // w + d
+                        break;
+                    case this.keyStatus["a"] || this.keyStatus["arrowleft"]:
+                        directionOffset = -Math.PI * 0.25 - Math.PI * 0.5; // w + a
+                        break;
+                    default:
+                        directionOffset = Math.PI; // s
+                        break;
+                }
+                break;
+            case this.keyStatus["d"] || this.keyStatus["arrowright"]:
+                directionOffset = Math.PI * 0.5; // d
+                break;
+            case this.keyStatus["a"] || this.keyStatus["arrowleft"]:
+                directionOffset = -Math.PI * 0.5; // a
+                break;
+            default:
+                directionOffset = 0; // s
+                break;
+        }
+
+        return directionOffset;
     }
 
     public dispose(): void {
