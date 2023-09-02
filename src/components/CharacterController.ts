@@ -18,6 +18,8 @@ class CharacterController {
         [key: string]: AnimationGroup;
     } = {};
     private isActive: boolean = false;
+    private isDancing: boolean = false;
+    private isCrouching: boolean = false;
     private isMoving: boolean = false;
     private isRunning: boolean = false;
 
@@ -44,9 +46,8 @@ class CharacterController {
     private static readonly CROUCH_SPEED: number = 0.015;
     private static readonly WALK_SPEED: number = 0.03;
     private static readonly RUN_SPEED: number = 0.08;
-    private static readonly JUMP_FORCE: number = 50;
+    // private static readonly JUMP_FORCE: number = 50;
 
-    private animSpeed: number = 1.0;
     private moveSpeed: number = CharacterController.WALK_SPEED;
 
     constructor(mesh: AbstractMesh, camera: ArcRotateCamera, scene: Scene) {
@@ -76,18 +77,22 @@ class CharacterController {
         // on key down
         this.scene.actionManager.registerAction(
             new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, e => {
-                let key = e.sourceEvent.key;
+                let key = e.sourceEvent.key.toLowerCase();
 
-                if (key === "Shift") {
+                if (key === "shift") {
                     // slow down if shift is held
                     this.moveSpeed = CharacterController.CROUCH_SPEED;
+
+                    this.isCrouching = true;
+                    // stop dancing animation
+                    this.isDancing = false;
                 }
-                if (key === "Control") {
+                if (key === "control") {
                     this.toggleRun();
                 }
 
-                if (key !== "Shift") {
-                    key = key.toLowerCase();
+                if (key === "g") {
+                    this.isDancing = !this.isDancing;
                 }
                 if (key in this.keyStatus) {
                     this.keyStatus[key] = true;
@@ -98,18 +103,16 @@ class CharacterController {
         // on key up
         this.scene.actionManager.registerAction(
             new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, e => {
-                let key = e.sourceEvent.key;
+                let key = e.sourceEvent.key.toLowerCase();
 
-                if (key === "Shift") {
+                if (key === "shift") {
+                    this.isCrouching = false;
+
                     if (!this.isRunning) {
                         this.moveSpeed = CharacterController.WALK_SPEED;
                     } else {
                         this.moveSpeed = CharacterController.RUN_SPEED;
                     }
-                }
-
-                if (key !== "Shift") {
-                    key = key.toLowerCase();
                 }
                 if (key in this.keyStatus) {
                     this.keyStatus[key] = false;
@@ -165,40 +168,22 @@ class CharacterController {
     private updateCharacter(): void {
         if (!this.isActive) return;
 
+        // add gravity to mesh
+        // this.mesh.moveWithCollisions(new Vector3(0, -0.1, 0));
+
         // keyboard controls
         const forward = !!this.keyStatus["w"] || !!this.keyStatus["arrowup"];
         const backward = !!this.keyStatus["s"] || !!this.keyStatus["arrowdown"];
         const left = !!this.keyStatus["a"] || !!this.keyStatus["arrowleft"];
         const right = !!this.keyStatus["d"] || !!this.keyStatus["arrowright"];
-        const shift = !!this.keyStatus["Shift"];
 
+        this.isMoving = false;
         if (forward || backward || left || right) {
             this.isMoving = true;
-        } else {
-            this.isMoving = false;
+            this.isDancing = false;
         }
 
         if (this.isMoving) {
-            if (!this.isRunning) {
-                this.animations.run.stop();
-                this.animations.walk.start(
-                    true,
-                    this.animSpeed,
-                    this.animations.walk.from,
-                    this.animations.walk.to,
-                    false,
-                );
-            } else {
-                this.animations.walk.stop();
-                this.animations.run.start(
-                    true,
-                    this.animSpeed,
-                    this.animations.run.from,
-                    this.animations.run.to,
-                    false,
-                );
-            }
-
             this.frontVector.set(0, 0, forward ? 1 : backward ? -1 : 0);
             this.sideVector.set(left ? 1 : right ? -1 : 0, 0, 0);
 
@@ -241,45 +226,26 @@ class CharacterController {
             // move the mesh
             this.mesh.moveWithCollisions(this.moveDirection);
 
-            if (shift) {
+            if (this.isCrouching) {
                 // play sneakwalk animation
-                this.animations.idle.stop();
-                this.animations.walk.stop();
-                this.animations.crouch.stop();
-                this.animations.run.stop();
-                this.animations.rumba.stop();
-                this.animations.sneakwalk.start(
-                    true,
-                    1.0,
-                    this.animations.sneakwalk.from,
-                    this.animations.sneakwalk.to,
-                    false,
-                );
+                this.playAnimation("sneakwalk");
+            } else {
+                if (!this.isRunning) {
+                    this.playAnimation("walk");
+                } else {
+                    this.playAnimation("run");
+                }
             }
         } else {
-            // play idle animation is no movement keys are pressed
-            this.animations.walk.stop();
-            this.animations.crouch.stop();
-            this.animations.run.stop();
-            this.animations.rumba.stop();
-            this.animations.sneakwalk.stop();
-            this.animations.idle.start(
-                true,
-                1.0,
-                this.animations.idle.from,
-                this.animations.idle.to,
-                false,
-            );
-
-            if (shift) {
+            if (this.isDancing) {
+                // play dance animation if g is pressed
+                this.playAnimation("rumba");
+            } else if (this.isCrouching) {
                 // play crouch animation if shift is held
-                this.animations.crouch.start(
-                    true,
-                    1.0,
-                    this.animations.crouch.from,
-                    this.animations.crouch.to,
-                    false,
-                );
+                this.playAnimation("crouch");
+            } else {
+                // play idle animation if no movement keys are pressed
+                this.playAnimation("idle");
             }
         }
     }
@@ -343,6 +309,24 @@ class CharacterController {
         }
 
         return directionOffset;
+    }
+
+    private playAnimation(name: string) {
+        Object.entries(this.animations).forEach(([animName, animationGroup]) => {
+            if (animName === name) {
+                console.log("playing animation", name);
+
+                this.animations[name].start(
+                    true,
+                    1.0,
+                    this.animations[name].from,
+                    this.animations[name].to,
+                    false,
+                );
+            } else {
+                animationGroup.stop();
+            }
+        });
     }
 
     public dispose(): void {
