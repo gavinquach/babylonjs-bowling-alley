@@ -150,8 +150,6 @@ class CharacterController {
         const right = !!this.keyStatus["d"] || !!this.keyStatus["arrowright"];
         const shift = !!this.keyStatus["Shift"];
 
-        // console.log(this.camera.rotationQuaternion);
-
         if (forward) {
             this.animations.walk.start(
                 true,
@@ -171,7 +169,6 @@ class CharacterController {
             );
         }
         if (left) {
-            // this.mesh.rotate(Vector3.Up(), -CharacterController.CROUCH_SPEED);
             this.animations.walk.start(
                 true,
                 this.animSpeed,
@@ -181,7 +178,6 @@ class CharacterController {
             );
         }
         if (right) {
-            // this.mesh.rotate(Vector3.Up(), CharacterController.CROUCH_SPEED);
             this.animations.walk.start(
                 true,
                 this.animSpeed,
@@ -215,27 +211,32 @@ class CharacterController {
                 this.moveDirection,
             );
 
-            // rotate avatar with respect to camera direction
             // calculate towards camera direction
             const angleYCameraDirection = Math.atan2(
                 this.camera.position.x - this.mesh.position.x,
                 this.camera.position.z - this.mesh.position.z,
             );
-
+            
+            // get direction offset
             const directionOffset = this.calculateDirectionOffset();
 
+            // rotate mesh with respect to camera direction
             this.mesh.rotationQuaternion = Quaternion.RotationAxis(
                 Vector3.Up(),
                 angleYCameraDirection + directionOffset,
             );
 
+            // ground the mesh to prevent it from flying
             this.moveDirection.y = 0;
 
+            // move the mesh
             this.mesh.moveWithCollisions(this.moveDirection);
 
             if (shift) {
+                // slow down if shift is held
                 this.moveSpeed = CharacterController.CROUCH_SPEED;
 
+                // play sneakwalk animation
                 this.animations.idle.stop();
                 this.animations.walk.stop();
                 this.animations.crouch.stop();
@@ -248,6 +249,7 @@ class CharacterController {
                 );
             }
         } else {
+            // play idle animation is no movement keys are pressed
             this.animations.walk.stop();
             this.animations.crouch.stop();
             this.animations.sneakwalk.stop();
@@ -260,6 +262,7 @@ class CharacterController {
             );
 
             if (shift) {
+                // play crouch animation if shift is held
                 this.animations.crouch.start(
                     true,
                     1.0,
@@ -304,7 +307,8 @@ class CharacterController {
         switch (true) {
             case this.keyStatus["w"] || this.keyStatus["arrowup"]:
                 switch (true) {
-                    case this.keyStatus["d"] || this.keyStatus["arrowright"]:201
+                    case this.keyStatus["d"] || this.keyStatus["arrowright"]:
+                        201;
                         directionOffset = Math.PI * 0.25; // w + d
                         break;
                     case this.keyStatus["a"] || this.keyStatus["arrowleft"]:
