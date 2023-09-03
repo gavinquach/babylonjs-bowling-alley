@@ -251,14 +251,14 @@ class CharacterController {
             this.moveDirection.normalize();
             this.moveDirection.scaleInPlace(this.moveSpeed);
 
-            // ground the mesh to prevent it from flying
-            this.moveDirection.y = 0;
-
             // move according to camera's rotation
             this.moveDirection.rotateByQuaternionToRef(
                 this.camera.absoluteRotation,
                 this.moveDirection,
             );
+
+            // ground the mesh to prevent it from flying
+            this.moveDirection.y = 0;
 
             // calculate towards camera direction
             const angleYCameraDirection = Math.atan2(
