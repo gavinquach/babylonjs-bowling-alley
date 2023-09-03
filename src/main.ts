@@ -8,6 +8,7 @@ import * as Hammer from "hammerjs";
 
 import Character from "./components/Character";
 import CharacterController from "./components/CharacterController";
+import Joystick from "./components/Joystick";
 
 // using CDN in index.html
 declare function HavokPhysics(): any;
@@ -21,6 +22,7 @@ class App {
     character?: Character;
     characterController?: CharacterController;
     thirdperson: boolean = false;
+    joystick: Joystick;
     bowlingAlleyObjects!: {
         ground: BABYLON.Mesh;
         character: BABYLON.AbstractMesh[];
@@ -36,11 +38,15 @@ class App {
     throwAngle: number = 0; // max: 5, min: -5, default: 0
 
     constructor() {
+        this.initHUD();
+
         this.canvas = document.createElement("canvas");
         this.canvas.style.width = "100%";
         this.canvas.style.height = "100%";
         this.canvas.id = "babylonCanvas";
         document.getElementById("app")!.appendChild(this.canvas);
+
+        this.joystick = new Joystick();
 
         // initialize babylon scene and engine
         this.engine = new BABYLON.Engine(this.canvas, true);
@@ -74,6 +80,7 @@ class App {
                     this.character!.root as BABYLON.Mesh,
                     this.camera as BABYLON.ArcRotateCamera,
                     this.scene,
+                    this.joystick,
                 );
             }
 
@@ -109,9 +116,13 @@ class App {
             this.scene.onDispose = () => {
                 window.removeEventListener("keydown", handleKeydown);
                 window.removeEventListener("resize", handleResize);
+
+                this.dispose();
             };
         });
     }
+
+    initHUD(): void { }
 
     async initScene(): Promise<void> {
         const envMapTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
@@ -581,6 +592,21 @@ class App {
     disposeCharacterController(): void {
         this.characterController?.dispose();
         this.characterController = null!;
+    }
+
+    dispose(): void {
+        this.engine.stopRenderLoop();
+        this.scene.dispose();
+        this.engine.dispose();
+
+        // dispose cameras
+        this.scene.cameras.forEach(camera => {
+            camera.dispose();
+        });
+
+        this.disposeCharacter();
+        this.disposeCharacterController();
+        this.joystick.dispose();
     }
 }
 

@@ -9,11 +9,15 @@ import {
     Scene,
     Vector3,
 } from "@babylonjs/core";
+import Joystick from "./Joystick";
+import { EventData, JoystickOutputData } from "nipplejs";
 
 class CharacterController {
     public scene: Scene;
     public camera: ArcRotateCamera;
     public mesh: AbstractMesh;
+    public joystick?: Joystick;
+
     private animations: {
         [key: string]: AnimationGroup;
     } = {};
@@ -48,12 +52,33 @@ class CharacterController {
     private static readonly RUN_SPEED: number = 0.08;
     private static readonly JUMP_FORCE: number = 50;
 
+    private animSpeed: number = 1.0;
     private moveSpeed: number = CharacterController.WALK_SPEED;
 
-    constructor(mesh: AbstractMesh, camera: ArcRotateCamera, scene: Scene) {
+    constructor(
+        mesh: AbstractMesh,
+        camera: ArcRotateCamera,
+        scene: Scene,
+        joystick?: Joystick,
+    ) {
         this.mesh = mesh;
         this.camera = camera;
         this.scene = scene;
+        this.joystick = joystick;
+
+        if (this.joystick !== undefined) {
+            const handleJoystickMove = (
+                e: EventData,
+                data: JoystickOutputData,
+            ): void => {
+                this.joystick!.setEvent(e);
+                this.joystick!.setData(data);
+            };
+
+            this.joystick.getManager().on("start", handleJoystickMove);
+            this.joystick.getManager().on("move", handleJoystickMove);
+            this.joystick.getManager().on("end", handleJoystickMove);
+        }
 
         this.animations.idle = this.scene.getAnimationGroupByName("Idle")!;
         this.animations.walk = this.scene.getAnimationGroupByName("Walk")!;
@@ -177,13 +202,44 @@ class CharacterController {
         const left = !!this.keyStatus["a"] || !!this.keyStatus["arrowleft"];
         const right = !!this.keyStatus["d"] || !!this.keyStatus["arrowright"];
 
-        this.isMoving = false;
-        if (forward || backward || left || right) {
+        if (
+            this.joystick?.getEvent()?.type === "move" &&
+            this.joystick?.getData()?.angle?.radian
+        ) {
             this.isMoving = true;
             this.isDancing = false;
-        }
 
-        if (this.isMoving) {
+            // calculate direction from joystick
+            // add additional 90 degree to the right
+            const directionOffset: number =
+                -this.joystick.getData().angle?.radian + Math.PI * 0.5;
+
+            // calculate towards camera direction
+            const angleYCameraDirection: number = Math.atan2(
+                this.camera.position.x - this.mesh.position.x,
+                this.camera.position.z - this.mesh.position.z,
+            );
+
+            // rotate mesh with respect to camera direction with lerp
+            this.mesh.rotationQuaternion = Quaternion.Slerp(
+                this.mesh.rotationQuaternion!,
+                Quaternion.RotationAxis(
+                    Vector3.Up(),
+                    angleYCameraDirection + directionOffset,
+                ),
+                0.2,
+            );
+
+            // move mesh
+            const joystickVector = this.joystick.getData().vector;
+            this.moveDirection.set(joystickVector.x, 0, joystickVector.y);
+            this.moveDirection.scaleInPlace(this.moveSpeed);
+
+            this.mesh.moveWithCollisions(this.moveDirection);
+        } else if (forward || backward || left || right) {
+            this.isMoving = true;
+            this.isDancing = false;
+
             this.frontVector.set(0, 0, forward ? 1 : backward ? -1 : 0);
             this.sideVector.set(left ? 1 : right ? -1 : 0, 0, 0);
 
@@ -194,6 +250,9 @@ class CharacterController {
             );
             this.moveDirection.normalize();
             this.moveDirection.scaleInPlace(this.moveSpeed);
+
+            // ground the mesh to prevent it from flying
+            this.moveDirection.y = 0;
 
             // move according to camera's rotation
             this.moveDirection.rotateByQuaternionToRef(
@@ -220,14 +279,15 @@ class CharacterController {
                 0.2,
             );
 
-            // ground the mesh to prevent it from flying
-            this.moveDirection.y = 0;
-
             // move the mesh
             this.mesh.moveWithCollisions(this.moveDirection);
+        } else {
+            this.isMoving = false;
+        }
 
+        if (this.isMoving) {
             if (this.isCrouching) {
-                // play sneakwalk animation
+                // play sneakwalk animation if shift is held
                 this.playAnimation("sneakwalk");
             } else {
                 if (!this.isRunning) {
@@ -316,7 +376,7 @@ class CharacterController {
             if (animName === name) {
                 this.animations[name].start(
                     true,
-                    1.0,
+                    this.animSpeed,
                     this.animations[name].from,
                     this.animations[name].to,
                     false,
