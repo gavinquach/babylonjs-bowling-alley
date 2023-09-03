@@ -314,8 +314,6 @@ class CharacterController {
     private playAnimation(name: string) {
         Object.entries(this.animations).forEach(([animName, animationGroup]) => {
             if (animName === name) {
-                console.log("playing animation", name);
-
                 this.animations[name].start(
                     true,
                     1.0,
