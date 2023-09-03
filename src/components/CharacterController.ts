@@ -46,7 +46,7 @@ class CharacterController {
     private static readonly CROUCH_SPEED: number = 0.015;
     private static readonly WALK_SPEED: number = 0.03;
     private static readonly RUN_SPEED: number = 0.08;
-    // private static readonly JUMP_FORCE: number = 50;
+    private static readonly JUMP_FORCE: number = 50;
 
     private moveSpeed: number = CharacterController.WALK_SPEED;
 
