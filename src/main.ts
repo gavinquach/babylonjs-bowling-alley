@@ -14,28 +14,34 @@ import Joystick from "./components/Joystick";
 declare function HavokPhysics(): any;
 
 class App {
-    canvas: HTMLCanvasElement;
-    engine: BABYLON.Engine;
-    scene: BABYLON.Scene;
-    havok!: HavokPhysicsWithBindings;
-    camera!: BABYLON.ArcRotateCamera | BABYLON.UniversalCamera;
-    character?: Character;
-    characterController?: CharacterController;
-    thirdperson: boolean = false;
-    joystick: Joystick;
-    bowlingAlleyObjects!: {
+    public canvas: HTMLCanvasElement;
+    public engine: BABYLON.Engine;
+    public scene: BABYLON.Scene;
+    public havok!: HavokPhysicsWithBindings;
+    public camera!: BABYLON.ArcRotateCamera | BABYLON.UniversalCamera;
+    public character!: Character;
+    public characterController!: CharacterController;
+    public thirdperson: boolean = false;
+    public joystick: Joystick;
+    public bowlingAlleyObjects!: {
         ground: BABYLON.Mesh;
         character: BABYLON.AbstractMesh[];
         ball: BABYLON.AbstractMesh;
-        ballBody: BABYLON.PhysicsBody;
-        pins: BABYLON.InstancedMesh[];
+        ballAggregate: BABYLON.PhysicsAggregate;
+        pinMeshes: BABYLON.InstancedMesh[];
+        pinAggregates: BABYLON.PhysicsAggregate[];
         facility: BABYLON.AbstractMesh[];
     };
-    allowThrow: boolean = false;
-    gameState: 0 | 1 | 2 | 3 = 0;
-    round: number = 1;
-    throwPower: number = 100;
-    throwAngle: number = 0; // max: 5, min: -5, default: 0
+
+    public gameState: 0 | 1 | 2 | 3 = 1;
+    public round: number = 1;
+    private isThirdperson: boolean = false;
+
+    private pinPositions: BABYLON.Vector3[];
+    private allowThrow: boolean = false;
+    private throwPower: number = 100;
+    private throwAngle: number = 0; // max: 5, min: -5, default: 0
+    private laneStage: 0 | 1 = 0;
 
     constructor() {
         this.initHUD();
@@ -55,14 +61,27 @@ class App {
         this.engine.displayLoadingUI();
 
         this.scene = new BABYLON.Scene(this.engine);
-        this.character = new Character(this.scene);
+
+        this.pinPositions = [
+            new BABYLON.Vector3(0, 0, 31.51), // 1
+            new BABYLON.Vector3(0.55, 0, 32.455), // 2
+            new BABYLON.Vector3(-0.55, 0, 32.455), // 3
+            new BABYLON.Vector3(0, 0, 33.39), // 4
+            new BABYLON.Vector3(1.1, 0, 33.39), // 5
+            new BABYLON.Vector3(-1.1, 0, 33.39), // 6
+            new BABYLON.Vector3(-1.65, 0, 34.35), // 7
+            new BABYLON.Vector3(-0.55, 0, 34.35), // 8
+            new BABYLON.Vector3(0.55, 0, 34.35), // 9
+            new BABYLON.Vector3(1.65, 0, 34.35), // 10
+        ];
 
         this.bowlingAlleyObjects = {
             ground: null!,
             ball: null!,
-            ballBody: null!,
+            ballAggregate: null!,
             character: [],
-            pins: [],
+            pinMeshes: [],
+            pinAggregates: [],
             facility: [],
         };
 
@@ -73,16 +92,16 @@ class App {
             await this.createPins(this.scene);
             await this.createBall(this.scene);
 
-            if (this.character) {
-                this.initThirdPersonController();
-                await this.character.init();
-                this.characterController = new CharacterController(
-                    this.character!.root as BABYLON.Mesh,
-                    this.camera as BABYLON.ArcRotateCamera,
-                    this.scene,
-                    this.joystick,
-                );
-            }
+            this.character = new Character(this.scene);
+            this.initThirdPersonController();
+            await this.character.init();
+            this.characterController = new CharacterController(
+                this.character!.root as BABYLON.Mesh,
+                this.character!.physicsBody as BABYLON.PhysicsBody,
+                this.camera as BABYLON.ArcRotateCamera,
+                this.scene,
+                this.joystick,
+            );
 
             this.createLight();
 
@@ -96,30 +115,166 @@ class App {
                 if (this.scene) this.scene.render();
             });
 
-            const handleKeydown = (ev: KeyboardEvent) => {
-                // hide/show the Inspector by pressing Shift + Ctrl + Alt + I
-                if (ev.shiftKey && ev.ctrlKey && ev.altKey && ev.inputIndex === 73) {
-                    if (this.scene.debugLayer.isVisible()) {
-                        this.scene.debugLayer.hide();
-                    } else {
-                        this.scene.debugLayer.show();
-                    }
-                }
-            };
-
             // the canvas/window resize event handler
             const handleResize = () => this.engine.resize();
-            window.addEventListener("keydown", handleKeydown);
             window.addEventListener("resize", handleResize);
 
             // remove event listener
             this.scene.onDispose = () => {
-                window.removeEventListener("keydown", handleKeydown);
                 window.removeEventListener("resize", handleResize);
 
                 this.dispose();
             };
         });
+    }
+
+    countStandingPins(): number {
+        let pinsUp = 0;
+        this.bowlingAlleyObjects.pinMeshes.forEach(pin => {
+            if (this.isPinUp(pin)) pinsUp++;
+        });
+        return pinsUp;
+    }
+
+    setLaneStage(): void {
+        this.allowThrow = false;
+
+        setTimeout(() => {
+            if (this.laneStage === 0) {
+                this.laneStage = 1;
+
+                // ==========================================
+                // reset ball position using ball physics body
+
+                // turn off pre step to reposition ball
+                this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = false;
+                this.bowlingAlleyObjects.ballAggregate.body.transformNode.position =
+                    new BABYLON.Vector3(0, 0.5, 1);
+
+                // freeze ball position and rotation
+                this.bowlingAlleyObjects.ballAggregate.body.setMotionType(
+                    BABYLON.PhysicsMotionType.STATIC,
+                );
+                // ==========================================
+
+                // ==========================================
+                // hide pins that have fallen
+                this.bowlingAlleyObjects.pinMeshes.forEach((pin, meshIndex) => {
+                    if (!this.isPinUp(pin)) {
+                        this.bowlingAlleyObjects.pinAggregates.forEach(
+                            (pinAggregate, aggIndex) => {
+                                if (meshIndex === aggIndex) {
+                                    // freeze pins position and rotation
+                                    pinAggregate.body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+
+                                    pinAggregate.body.disablePreStep = false;
+                                    pinAggregate.body.transformNode.position.y = 1.5;
+
+                                    // reset rotation
+                                    pinAggregate.body.transformNode.rotationQuaternion =
+                                        new BABYLON.Vector3(
+                                            1.5650289785496072,
+                                            0.8744594232768839,
+                                            0.8744420168855229
+                                        ).toQuaternion();
+
+                                }
+                            },
+                        );
+                    }
+                });
+
+                this.scene.onAfterRenderObservable.addOnce(() => {
+                    // Turn disablePreStep on again for maximum performance
+                    this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = true;
+
+                    // allow ball to move again
+                    this.bowlingAlleyObjects.ballAggregate.body.setMotionType(
+                        BABYLON.PhysicsMotionType.DYNAMIC,
+                    );
+                });
+            } else {
+                this.laneStage = 0;
+
+                // ==========================================
+                // reset ball position using ball physics body
+
+                // turn off pre step to reposition ball
+                this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = false;
+                this.bowlingAlleyObjects.ballAggregate.body.transformNode.position =
+                    new BABYLON.Vector3(0, 0.5, 1);
+
+                // freeze ball position and rotation
+                this.bowlingAlleyObjects.ballAggregate.body.setMotionType(
+                    BABYLON.PhysicsMotionType.STATIC,
+                );
+                // ==========================================
+
+                // ==========================================
+                // reset pins position
+                this.bowlingAlleyObjects.pinAggregates.forEach(
+                    (pinAggregate, aggIndex) => {
+                        // freeze pins position and rotation
+                        pinAggregate.body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+
+                        // turn off disable pre step to reposition pin
+                        pinAggregate.body.disablePreStep = false;
+
+                        // reset rotation and position
+                        pinAggregate.body.transformNode.rotationQuaternion =
+                            new BABYLON.Vector3(
+                                1.5650289785496072,
+                                0.8744594232768839,
+                                0.8744420168855229
+                            ).toQuaternion();
+                        pinAggregate.body.transformNode.position = this.pinPositions[aggIndex];
+
+                        console.log(pinAggregate.body.transformNode.position);
+                    },
+                );
+
+                this.scene.onAfterRenderObservable.addOnce(() => {
+                    // Turn disablePreStep on again for maximum performance
+                    this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = true;
+
+                    // allow ball to move again
+                    this.bowlingAlleyObjects.ballAggregate.body.setMotionType(
+                        BABYLON.PhysicsMotionType.DYNAMIC,
+                    );
+
+                    this.bowlingAlleyObjects.pinAggregates.forEach((pinAggregate) => {
+                        // Turn disablePreStep on again for maximum performance
+                        pinAggregate.body.disablePreStep = true;
+
+                        // allow pin to move again
+                        pinAggregate.body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+                    });
+                });
+            }
+
+            // allow throw ball again
+            this.allowThrow = true;
+        }, 6000);
+    }
+
+    isPinUp(pin: BABYLON.AbstractMesh): boolean {
+        // a vector3 rotation angle close to this is up (margin of 0.07)
+        // x: 1.5650289785496072
+        // y: 0.8744594232768839
+        // z: 0.8744420168855229
+        const rotation = pin.rotationQuaternion?.toEulerAngles();
+
+        if (rotation) {
+            if (
+                Math.abs(rotation.x - 1.5650289785496072) < 0.07 &&
+                Math.abs(rotation.y - 0.8744594232768839) < 0.07 &&
+                Math.abs(rotation.z - 0.8744420168855229) < 0.07
+            ) {
+                return true;
+            }
+            return false;
+        }
+        return false;
     }
 
     initHUD(): void { }
@@ -134,7 +289,7 @@ class App {
         this.scene.environmentIntensity = 0.5;
 
         // Enable physics
-        const gravityVector = new BABYLON.Vector3(0, -9.81, 0);
+        const gravityVector = new BABYLON.Vector3(0, -19.62, 0);
         this.havok = await HavokPhysics();
         // pass the engine to the plugin
         const havokPlugin = new BABYLON.HavokPlugin(true, this.havok);
@@ -195,7 +350,9 @@ class App {
         this.bowlingAlleyObjects.ground.material.alpha = 0;
     }
 
+
     initThirdPersonController(): void {
+        if (this.isThirdperson) return;
         this.resetCamera();
 
         this.camera = new BABYLON.ArcRotateCamera(
@@ -203,7 +360,7 @@ class App {
             -Math.PI * 0.5,
             Math.PI * 0.5,
             5,
-            new BABYLON.Vector3(0, 2.5, -2), // target
+            new BABYLON.Vector3(0, 1.15, -2), // target
             this.scene,
         );
 
@@ -219,7 +376,7 @@ class App {
 
         // camera min distance and max distance
         this.camera.lowerRadiusLimit = 0.5;
-        this.camera.upperRadiusLimit = 5;
+        this.camera.upperRadiusLimit = 10;
 
         //  lower rotation sensitivity, higher value = less sensitive
         this.camera.angularSensibilityX = 2000;
@@ -230,11 +387,12 @@ class App {
         this.camera.keysDown = [];
         this.camera.keysLeft = [];
         this.camera.keysRight = [];
+
+        this.isThirdperson = true;
     }
 
     initSceneCamera(): void {
         this.resetCamera();
-        this.initCharacter();
 
         this.camera = new BABYLON.ArcRotateCamera(
             "camera",
@@ -269,6 +427,8 @@ class App {
         this.camera.keysDown = [];
         this.camera.keysLeft = [];
         this.camera.keysRight = [];
+
+        this.isThirdperson = false;
     }
 
     initControls(): void {
@@ -276,60 +436,78 @@ class App {
         this.scene.onKeyboardObservable.add(async kbInfo => {
             if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
                 switch (kbInfo.event.key.toLowerCase().trim()) {
+                    case "i":
+                        if (this.scene.debugLayer.isVisible()) {
+                            this.scene.debugLayer.hide();
+                        } else {
+                            this.scene.debugLayer.show();
+                        }
+                        break;
                     case "1":
                         // switch to arc rotate camera by pressing 1
+                        // switch to first person controller (without pointer lock) by pressing 2
+                        this.stopCharacterController();
+                        this.character?.hide();
                         this.initSceneCamera();
-                        this.disposeCharacterController();
                         break;
                     case "2":
-                        // switch to first person controller (with pointer lock) by pressing 2
-                        this.disposeCharacterController();
-                        this.initFirstPersonController(true);
-                        break;
-                    case "3":
-                        // switch to first person controller (without pointer lock) by pressing 3
-                        this.disposeCharacterController();
-                        this.initFirstPersonController(false);
-                        break;
-                    case "4":
-                        // switch to third person controller by pressing 4
+                        if (this.isThirdperson) return;
+                        // switch to third person controller by pressing 3
                         this.initThirdPersonController();
 
                         if (!this.character) {
-                            this.character = new Character(this.scene);
-                            await this.character.init();
+                            await this.initCharacterAsync();
+                        } else {
+                            this.character.show();
                         }
-                        this.characterController = new CharacterController(
-                            this.character!.root as BABYLON.Mesh,
-                            this.camera as BABYLON.ArcRotateCamera,
-                            this.scene,
-                        );
+
+                        if (!this.characterController) {
+                            this.characterController = new CharacterController(
+                                this.character!.root as BABYLON.Mesh,
+                                this.character!.physicsBody as BABYLON.PhysicsBody,
+                                this.camera as BABYLON.ArcRotateCamera,
+                                this.scene,
+                                this.joystick,
+                            );
+                        } else {
+                            this.characterController.start();
+                        }
                         break;
                     case "":
                         if (!this.allowThrow) return;
-                        this.bowlingAlleyObjects.ballBody.applyImpulse(
-                            new BABYLON.Vector3(this.throwAngle, 0, 100),
+                        this.bowlingAlleyObjects.ballAggregate.body.applyImpulse(
+                            new BABYLON.Vector3(this.throwAngle, 0, this.throwPower),
                             this.bowlingAlleyObjects.ball.getAbsolutePosition(),
                         );
-                        this.allowThrow = false;
+                        this.setLaneStage();
                         break;
                     case "w":
                     case "arrowup":
                         if (!this.allowThrow) return;
                         this.throwAngle += this.throwAngle >= 5 ? 0 : 0.5;
+                        this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = false;
                         this.bowlingAlleyObjects.ball.rotate(
                             BABYLON.Vector3.Up(),
                             -Math.PI * 0.01,
                         );
+                        this.scene.onAfterRenderObservable.addOnce(() => {
+                            // Turn disablePreStep on again for maximum performance
+                            this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = true;
+                        });
                         break;
                     case "s":
                     case "arrowdown":
                         if (!this.allowThrow) return;
                         this.throwAngle -= this.throwAngle <= -5 ? 0 : 0.5;
+                        this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = false;
                         this.bowlingAlleyObjects.ball.rotate(
                             BABYLON.Vector3.Up(),
                             Math.PI * 0.01,
                         );
+                        this.scene.onAfterRenderObservable.addOnce(() => {
+                            // Turn disablePreStep on again for maximum performance
+                            this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = true;
+                        });
                         break;
                     case "a":
                     case "arrowleft":
@@ -360,11 +538,11 @@ class App {
             switch (e.direction) {
                 // swipe up to throw ball
                 case Hammer.DIRECTION_UP:
-                    this.bowlingAlleyObjects.ballBody.applyImpulse(
-                        new BABYLON.Vector3(this.throwAngle, 0, 100),
+                    this.bowlingAlleyObjects.ballAggregate.body.applyImpulse(
+                        new BABYLON.Vector3(this.throwAngle, 0, this.throwPower),
                         this.bowlingAlleyObjects.ball.getAbsolutePosition(),
                     );
-                    this.allowThrow = false;
+                    this.setLaneStage();
                     break;
                 case Hammer.DIRECTION_LEFT:
                     if (this.bowlingAlleyObjects.ball.position.x > 1.8) break;
@@ -422,7 +600,7 @@ class App {
         this.bowlingAlleyObjects.ball.receiveShadows = true;
         shadowGenerator.addShadowCaster(this.bowlingAlleyObjects.ball);
 
-        this.bowlingAlleyObjects.pins.forEach(mesh => {
+        this.bowlingAlleyObjects.pinMeshes.forEach(mesh => {
             mesh.receiveShadows = true;
             shadowGenerator.addShadowCaster(mesh);
         });
@@ -488,36 +666,25 @@ class App {
         bowlingPin.scaling = new BABYLON.Vector3(0.3, 0.3, 0.3);
         bowlingPin.setEnabled(false);
 
-        // Pin positions
-        const pinPositions = [
-            new BABYLON.Vector3(0, 0, 31.51),
-            new BABYLON.Vector3(0.55, 0, 32.455),
-            new BABYLON.Vector3(-0.55, 0, 32.455),
-            new BABYLON.Vector3(0, 0, 33.39),
-            new BABYLON.Vector3(1.1, 0, 33.39),
-            new BABYLON.Vector3(-1.1, 0, 33.39),
-            new BABYLON.Vector3(-1.65, 0, 34.35),
-            new BABYLON.Vector3(-0.55, 0, 34.35),
-            new BABYLON.Vector3(0.55, 0, 34.35),
-            new BABYLON.Vector3(1.65, 0, 34.35),
-        ];
-
         // Create instances of the bowling pin
-        pinPositions.forEach((positionInSpace, idx) => {
+        this.pinPositions.forEach((positionInSpace, idx) => {
             const pin = new BABYLON.InstancedMesh(
                 "pin-" + idx,
                 bowlingPin as BABYLON.Mesh,
             );
             pin.position = positionInSpace;
 
-            this.bowlingAlleyObjects.pins.push(pin);
+            this.bowlingAlleyObjects.pinMeshes.push(pin);
 
-            new BABYLON.PhysicsAggregate(
+            const pinAggregate = new BABYLON.PhysicsAggregate(
                 pin,
                 BABYLON.PhysicsShapeType.CONVEX_HULL,
                 { mass: 1, restitution: 0.15 },
                 scene,
             );
+
+            this.bowlingAlleyObjects.pinAggregates.push(pinAggregate);
+
             return pin;
         });
     }
@@ -542,13 +709,13 @@ class App {
             { mass: 4, restitution: 0.25 },
             scene,
         );
-        this.bowlingAlleyObjects.ballBody = ballAggregate.body;
+        this.bowlingAlleyObjects.ballAggregate = ballAggregate;
 
-        ballAggregate.body.disablePreStep = false;
-        // Turn disablePreStep on again for maximum performance
-        scene.onAfterRenderObservable.addOnce(() => {
-            ballAggregate.body.disablePreStep = true;
-        });
+        // this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = false;
+        // // Turn disablePreStep on again for maximum performance
+        // scene.onAfterRenderObservable.addOnce(() => {
+        //     this.bowlingAlleyObjects.ballAggregate.body.disablePreStep = true;
+        // });
     }
 
     resetCamera(): void {
@@ -589,24 +756,25 @@ class App {
         this.character = null!;
     }
 
-    disposeCharacterController(): void {
+    stopCharacterController(): void {
         this.characterController?.dispose();
         this.characterController = null!;
     }
 
     dispose(): void {
-        this.engine.stopRenderLoop();
-        this.scene.dispose();
-        this.engine.dispose();
-
         // dispose cameras
         this.scene.cameras.forEach(camera => {
             camera.dispose();
         });
 
+        // dispose character and character controller
         this.disposeCharacter();
-        this.disposeCharacterController();
+        this.stopCharacterController();
         this.joystick.dispose();
+
+        this.engine.stopRenderLoop();
+        this.scene.dispose();
+        this.engine.dispose();
     }
 }
 

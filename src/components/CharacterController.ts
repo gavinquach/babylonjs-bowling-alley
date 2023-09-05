@@ -5,6 +5,7 @@ import {
     ArcRotateCamera,
     ExecuteCodeAction,
     KeyboardEventTypes,
+    PhysicsBody,
     Quaternion,
     Scene,
     Vector3,
@@ -16,8 +17,8 @@ class CharacterController {
     public scene: Scene;
     public camera: ArcRotateCamera;
     public mesh: AbstractMesh;
+    public meshBody: PhysicsBody;
     public joystick?: Joystick;
-
     private animations: {
         [key: string]: AnimationGroup;
     } = {};
@@ -50,18 +51,20 @@ class CharacterController {
     private static readonly CROUCH_SPEED: number = 0.015;
     private static readonly WALK_SPEED: number = 0.03;
     private static readonly RUN_SPEED: number = 0.08;
-    private static readonly JUMP_FORCE: number = 50;
+    private static readonly JUMP_FORCE: number = 500;
 
     private animSpeed: number = 1.0;
     private moveSpeed: number = CharacterController.WALK_SPEED;
 
     constructor(
         mesh: AbstractMesh,
+        meshBody: PhysicsBody,
         camera: ArcRotateCamera,
         scene: Scene,
         joystick?: Joystick,
     ) {
         this.mesh = mesh;
+        this.meshBody = meshBody;
         this.camera = camera;
         this.scene = scene;
         this.joystick = joystick;
@@ -94,8 +97,6 @@ class CharacterController {
     }
 
     public start(): void {
-        this.isActive = true;
-
         // Keyboard input
         this.scene.actionManager = new ActionManager(this.scene);
 
@@ -156,15 +157,17 @@ class CharacterController {
         });
 
         this.scene.onBeforeRenderObservable.add(() => {
+            if (!this.isActive) return;
             this.updateCharacter();
             this.updateCamera();
         });
+
+        this.isActive = true;
     }
 
     public stop(): void {
-        this.scene.actionManager.dispose();
-        this.scene.onBeforeRenderObservable.clear();
         this.isActive = false;
+        this.scene.actionManager.dispose();
     }
 
     private updateCamera(): void {
@@ -186,15 +189,12 @@ class CharacterController {
         this.camera.position.z += deltaZ;
 
         this.camera.setTarget(
-            new Vector3(translation.x, translation.y + 2.5, translation.z),
+            new Vector3(translation.x, translation.y + 1.15, translation.z),
         );
     }
 
     private updateCharacter(): void {
         if (!this.isActive) return;
-
-        // add gravity to mesh
-        // this.mesh.moveWithCollisions(new Vector3(0, -0.1, 0));
 
         // keyboard controls
         const forward = !!this.keyStatus["w"] || !!this.keyStatus["arrowup"];
@@ -230,12 +230,26 @@ class CharacterController {
                 0.2,
             );
 
-            // move mesh
+            // ========================================================
+            // move physics body
+
+            // get joystick x and y vectors
             const joystickVector = this.joystick.getData().vector;
             this.moveDirection.set(joystickVector.x, 0, joystickVector.y);
-            this.moveDirection.scaleInPlace(this.moveSpeed);
+            this.moveDirection.scaleInPlace(this.moveSpeed * 100);
 
-            this.mesh.moveWithCollisions(this.moveDirection);
+            // move according to camera's rotation
+            this.moveDirection.rotateByQuaternionToRef(
+                this.camera.absoluteRotation,
+                this.moveDirection,
+            );
+
+            // get y velocity to make it behave properly
+            const vel = this.meshBody.getLinearVelocity();
+            this.moveDirection.y = vel.y;
+
+            // move
+            this.meshBody.setLinearVelocity(this.moveDirection);
         } else if (forward || backward || left || right) {
             this.isMoving = true;
             this.isDancing = false;
@@ -249,7 +263,7 @@ class CharacterController {
                 this.frontVector.z - this.sideVector.z,
             );
             this.moveDirection.normalize();
-            this.moveDirection.scaleInPlace(this.moveSpeed);
+            this.moveDirection.scaleInPlace(this.moveSpeed * 100);
 
             // move according to camera's rotation
             this.moveDirection.rotateByQuaternionToRef(
@@ -279,9 +293,12 @@ class CharacterController {
                 0.2,
             );
 
-            // move the mesh
-            this.mesh.moveWithCollisions(this.moveDirection);
+            // move the mesh by moving the physics body
+            const vel = this.meshBody.getLinearVelocity();
+            this.moveDirection.y = vel.y;
+            this.meshBody.setLinearVelocity(this.moveDirection);
         } else {
+            this.meshBody.setLinearVelocity(this.meshBody.getLinearVelocity());
             this.isMoving = false;
         }
 
@@ -292,9 +309,9 @@ class CharacterController {
             } else {
                 if (!this.isRunning) {
                     this.playAnimation("walk");
-                } else {
-                    this.playAnimation("run");
+                    return;
                 }
+                this.playAnimation("run");
             }
         } else {
             if (this.isDancing) {
@@ -312,9 +329,12 @@ class CharacterController {
 
     private jump(): void {
         if (!this.isActive) return;
-        this.mesh.applyImpulse(
+
+        // make mesh jump
+
+        this.meshBody.applyImpulse(
             new Vector3(0, CharacterController.JUMP_FORCE, 0),
-            new Vector3(0, 0, 0),
+            this.mesh.position,
         );
         console.log("called jump");
     }
