@@ -13,7 +13,7 @@ import {
 } from "@babylonjs/core";
 
 class Character {
-    public scene: Scene;
+    private _scene: Scene;
     private _root!: AbstractMesh;
     private _meshes!: AbstractMesh[];
     private _animations: {
@@ -24,7 +24,7 @@ class Character {
     private _physicsAggregate: PhysicsAggregate;
 
     constructor(scene: Scene) {
-        this.scene = scene;
+        this._scene = scene;
 
         // create capsule physics body for character
         this._capsuleMesh = MeshBuilder.CreateCapsule(
@@ -35,7 +35,7 @@ class Character {
                 tessellation: 2,
                 subdivisions: 1,
             },
-            this.scene,
+            this._scene,
         );
         this._capsuleMesh.isVisible = false;
         this._capsuleMesh.position = new Vector3(0, this.capsuleHeight * 0.5, 0);
@@ -44,7 +44,7 @@ class Character {
             this._capsuleMesh,
             PhysicsShapeType.CAPSULE,
             { mass: 20, restitution: 0.01 },
-            this.scene,
+            this._scene,
         );
 
         this._physicsAggregate = physicsAggregate;
@@ -52,8 +52,9 @@ class Character {
 
         // lock rotation by disabling intertia
         this._physicsAggregate.body.setMassProperties({
-            inertia: new Vector3(0, 0, 0),
+            inertia: Vector3.Zero(),
         });
+
         // prevent sliding around
         this._physicsAggregate.body.setLinearDamping(50);
     }
@@ -63,7 +64,7 @@ class Character {
             "",
             "/models/",
             "character.glb",
-            this.scene,
+            this._scene,
         );
         this._meshes = meshes;
         this._root = meshes[0];
@@ -95,11 +96,14 @@ class Character {
         });
         this._root.setPivotPoint(new Vector3(0, characterHeight * 1.6, 0));
 
-        this.scene.registerBeforeRender(() => {
+        this._scene.registerBeforeRender(() => {
             this._root.position.copyFrom(this._capsuleMesh.position);
         });
     }
 
+    public get scene(): Scene {
+        return this._scene;
+    }
     public get root(): AbstractMesh {
         return this._root;
     }
@@ -129,7 +133,7 @@ class Character {
 
         this.physicsAggregate.body.disablePreStep = false;
         this._capsuleMesh.position = new Vector3(0, this.capsuleHeight * 0.5, 0);
-        this.scene.onAfterPhysicsObservable.addOnce(() => {
+        this._scene.onAfterPhysicsObservable.addOnce(() => {
             this.physicsAggregate.body.disablePreStep = true;
         });
     }
@@ -137,17 +141,18 @@ class Character {
     public dispose(): void {
         // remove all meshes' animations
         Object.entries(this._animations).forEach(([_, animation]) => {
+            this._scene.removeAnimationGroup(animation);
             animation.dispose();
         });
 
         if (!this._meshes) return;
 
         this._meshes.forEach(mesh => {
-            this.scene.removeMesh(mesh);
+            this._scene.removeMesh(mesh);
             mesh.dispose(false, true);
         });
 
-        this.scene.removeMesh(this._capsuleMesh);
+        this._scene.removeMesh(this._capsuleMesh);
         this._capsuleMesh.dispose();
     }
 }
